@@ -3,14 +3,18 @@ import gspread
 from datetime import datetime, timedelta, date, time
 from time import sleep
 import config
-
+import os
 
 # validation and retrieval of Google Sheets
 def retrievingKeyGspread():
-    api_key_path = config.get_api_key_path()
-    worksheet_id = config.get_worksheet_id()
+    api_key_path = os.getenv("key_ath")
+    worksheet_id = os.getenv("WORKSHEET_ID")
+    
     if not api_key_path.exists():
-        raise FileNotFoundError(api_key_path)
+        raise FileNotFoundError(
+            {"error": "api_key_path not define, please enter valid path for the api key", "success": "false"}
+            )
+    
     gc = gspread.service_account(filename=str(worksheet))
     sh = gc.open_by_key(str(worksheet_id))
     worksheet = sh.worksheet(str(getSemester()))
@@ -97,13 +101,12 @@ def checkForNewRows(initial, last_row_count):
         current_row_count = len(all_records)
         
         if current_row_count > last_row_count:
-                                                                                                        #print(f"New row(s) detected at {datetime.now()}")
-            new_data = all_records[last_row_count:]
+                                                                                                       
             return new_data, current_row_count
         
         elif current_row_count < last_row_count:
             # rows were deleted, reset
-                                                                                                        #print(f"Row count decreased. Resetting at {datetime.now()}")
+                                                                                                      
             return [], current_row_count
         # no new rows
         return [], last_row_count
@@ -116,17 +119,16 @@ def checkForNewRows(initial, last_row_count):
 def autoUpdate(initial_records):
     #initial_records = worksheet.get_all_records(value_render_option='FORMULA')[2:]
     last_row_count = len(initial_records)
-                                                                                                        #print(f"Starting auto-update. Initial row count: {last_row_count}")
+                                                                                                        
     while True:
         try:
             new_records, last_row_count = checkForNewRows(initial_records, last_row_count)
-            if new_records:
-                                                                                                        #print(f"Processing {len(new_records)} new row(s)...")
+            if new_records:                                                                                 
                 events = normalizingEvents(new_records)
-                if events:
-                                                                                                        #print(f"Found {len(events)} valid event(s)")
+                
+                if events:                                                                       
                     return events  # Return the new events
                 
         except Exception as e:
             print(f"Error in main loop: {e}")
-        #sleep(5) # 604800 seconds in a week
+        sleep(5) # 604800 seconds in a week

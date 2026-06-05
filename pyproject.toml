@@ -1,0 +1,11 @@
+[project]
+name = "ama-ucf"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "google-api-python-client>=2.197.0",
+    "google-auth>=2.53.0",
+    "gspread>=6.2.1",
+]
