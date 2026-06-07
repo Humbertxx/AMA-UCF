@@ -35,21 +35,6 @@ Analytics should include:
 - Semester-over-semester event totals
 - Summary tables that can be reviewed directly inside Google Sheets
 
-### 2. Add a Sync Audit Trail
-
-Each sync run should write a timestamped audit entry to either `sync_log.csv` or a small SQLite database.
-
-The audit trail should capture:
-
-- Run timestamp
-- Semester or sheet processed
-- Events found
-- Events created
-- Events skipped
-- Errors or warnings
-
-This makes the project behave more like a production data pipeline with basic observability.
-
 ### 3. Add Pytest Coverage
 
 Add tests for the core normalization helpers:
@@ -184,11 +169,6 @@ Run a one-time sync:
 uv run python main.py
 ```
 
-Run watch mode locally:
-
-```bash
-uv run python main.py watch
-```
 
 ## GitHub Actions Runtime
 
@@ -227,9 +207,7 @@ Use least-privilege credentials where possible, and share the target Sheet and C
 
 - Replace row-dictionary reads with Pandas DataFrame ingestion through `gspread-dataframe`.
 - Add NumPy-backed analytics and write them to an `Analytics` sheet tab.
-- Add `sync_log.csv` or SQLite run logging.
 - Add `pytest` tests for date conversion and event normalization.
 - Add a `--semester` argument for reusable semester-based runs.
-- Add a GitHub Actions workflow for scheduled and manual syncs.
 
 Created by Humberto Bohorquez. Built with Python, Google APIs, and GitHub Actions.
