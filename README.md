@@ -1,8 +1,8 @@
 # AMA UCF Google Sheets to Google Calendar Pipeline
 
-This project syncs AMA UCF event data from Google Sheets into Google Calendar. It is being shaped as an automated Python data pipeline that runs on GitHub Actions instead of a Flask web application.
+This project syncs AMA UCF event data from Google Sheets into Google Calendar. Python data pipeline that runs on GitHub Actions.
 
-The goal is to keep the club calendar up to date from a semester-based planning sheet while also producing lightweight analytics and audit logs that make each sync run observable.
+The goal is to keep the organization calendar up to date from a semester-based planning sheet while also producing lightweight analytics and audit logs that make each sync run observable.
 
 ## Current Stack
 
@@ -13,7 +13,7 @@ The goal is to keep the club calendar up to date from a semester-based planning 
 - GitHub Actions for scheduled and manual pipeline runs
 - Environment variables and repository secrets for credentials and IDs
 
-This project does not use Flask. Runtime automation should happen through GitHub Actions workflows.
+Runtime automation should happen through GitHub Actions workflows.
 
 ## What the Pipeline Does
 

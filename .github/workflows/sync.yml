@@ -1,0 +1,44 @@
+name: "sync ama-ucf Google Sheets to Google Calendar"
+
+on:
+  schedule:
+    - cron: '0 0 * * 1' # Every Monday at midnight
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    env:
+      SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+      CALENDAR_ID: ${{ secrets.CALENDAR_ID }}
+      CALENDAR_NAME: ${{ vars.CALENDAR_NAME }}
+      CALENDAR_TIMEZONE: ${{ vars.CALENDAR_TIMEZONE }}
+      POLL_INTERVAL_SECONDS: ${{ vars.POLL_INTERVAL_SECONDS }}
+
+      CREDENTIALS_WORKSHEET_FILE_PATH: private/google-sheets-key.json
+      CREDENTIALS_CALENDAR_FILE_PATH: private/google-calendar-key.json
+      TOKEN_FILE_PATH: private/token.json
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Create private credential files
+        run: |
+          mkdir -p private
+          echo '${{ secrets.GOOGLE_SHEETS_CREDENTIALS_JSON }}' > private/google-sheets-key.json
+          echo '${{ secrets.GOOGLE_CALENDAR_CREDENTIALS_JSON }}' > private/google-calendar-key.json
+          echo '${{ secrets.GOOGLE_CALENDAR_TOKEN_JSON }}' > private/token.json
+
+      - name: Run sync
+        run: uv run python main.py 
