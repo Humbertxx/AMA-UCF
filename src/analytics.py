@@ -1,5 +1,6 @@
 import numpy as np
-from sheets import get_worksheet
+
+from src.sheets import get_worksheet
 
 ws = get_worksheet
 

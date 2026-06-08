@@ -1,11 +1,11 @@
-import os
 from pathlib import Path
 from datetime import datetime, timedelta
-from config import SPREADSHEET_ID, CREDENTIALS_WORKSHEET_FILE_PATH
 import gspread
 from gspread import Worksheet
 from typing import Dict, List
-from utils import serialToDate, getSemester, fractionToTime
+
+from src.utils import serialToDate, getSemester, fractionToTime
+from src.config import SPREADSHEET_ID, CREDENTIALS_WORKSHEET_FILE_PATH
 
 # validation and retrieval of Google Sheets
 def get_worksheet() -> Worksheet:
@@ -13,7 +13,7 @@ def get_worksheet() -> Worksheet:
         api_key_path = CREDENTIALS_WORKSHEET_FILE_PATH
         worksheet_id = SPREADSHEET_ID
         
-        if not os.path.exists(api_key_path):
+        if not api_key_path:
             raise ValueError("Google Sheets credential path is not configured.")
         if not worksheet_id:
             raise ValueError("Google Sheets spreadsheet ID is not configured.")
@@ -26,30 +26,34 @@ def get_worksheet() -> Worksheet:
         gc = gspread.service_account(filename=str(credential_path))
         
         spreadsheet = gc.open_by_key(str(worksheet_id))
-        worksheet = spreadsheet.worksheet(str(getSemester()))
+        semester_response = getSemester()
+        if not semester_response["success"]:
+            return semester_response
 
-        return worksheet
+        worksheet = spreadsheet.worksheet(str(semester_response["data"]))
+
+        return {"success": True, "error": None, "data": worksheet}
     
     except Exception as exc:
-        return {"error": exc, "data": None, "success": "false"}
+        return {"success": False, "error": str(exc), "data": None}
 
 def get_all_rows(ws: Worksheet) -> List[Dict[str, int | float | str]]:
     try:
         if not ws:
-            return ValueError("Worksheet is required.")
+            raise ValueError("Worksheet is required.")
 
         rows = ws.get_all_records(value_render_option="FORMULA")[2:]
-        return rows
+        return {"success": True, "error": None, "data": rows}
     
     except Exception as exc:
-        return {"error": exc, "data": None, "success": "false"}
+        return {"success": False, "error": str(exc), "data": None}
 
 # this function get relevant dates that are numeric in FORMULA FORM, then its continues to get standard way 
 # of getting dates in Google Calendar API 
 def normalizingEvents(rows) -> list:
     try:
         if rows is None:
-            return ValueError("Rows are required.")
+            raise ValueError("Rows are required.")
 
         events = []
         for row in rows:
@@ -69,7 +73,10 @@ def normalizingEvents(rows) -> list:
 
                 time_frac = row.get("Time")
                 time_response = fractionToTime(time_frac)
-                time_normal = time_response.get("data") if time_response["success"] else None
+                if not time_response["success"]:
+                    return time_response
+
+                time_normal = time_response["data"]
 
                 if time_normal:
                     start_dt = datetime.combine(event_date, time_normal)
@@ -89,9 +96,9 @@ def normalizingEvents(rows) -> list:
                     "end": end_field,
                 })
             except Exception as exc:
-                return {"error": exc, "data": None, "success": "false"}
+                return {"success": False, "error": str(exc), "data": None}
 
-        return events
+        return {"success": True, "error": None, "data": events}
     
     except Exception as exc:
-        return {"error": exc, "data": None, "success": "false"}
+        return {"success": False, "error": str(exc), "data": None}

@@ -2,15 +2,17 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
 import datetime
 import os.path
-from config import SCOPES_CALENDAR, TOKEN_FILE_PATH, \
+import hashlib
+
+from src.utils import getSemester
+from src.config import SCOPES_CALENDAR, TOKEN_FILE_PATH, \
   CREDENTIALS_CALENDAR_FILE_PATH, CALENDAR_TZ, CALENDAR_NAME, \
     EVENT_TYPE_MAP, CALENDAR_ID, AUTO_CREATE_CALENDAR
     
-from utils import getSemester
+
 
 
 # validation and retrieval of Google Calendar         
@@ -22,163 +24,242 @@ def createCalendarService():
     if not api_key_path or not os.path.exists(api_key_path):
       raise FileNotFoundError("Google Calendar credential path is not configured or file is missing.")
 
-    creds = getCredentials(str(token_path), str(api_key_path))
+    credentials_response = getCredentials(str(token_path), str(api_key_path))
+    if not credentials_response["success"]:
+      return credentials_response
+
+    creds = credentials_response["data"]
     service = build("calendar", "v3", credentials=creds)
     
-    return service
+    return {"success": True, "error": None, "data": service}
   
-  except FileNotFoundError as exc:
-    return {"error": exc, "data": None, "success": "false"}
+  except Exception as exc:
+    return {"success": False, "error": str(exc), "data": None}
   
 # get the calendar ID based on its name
 def calendar_id(service):
   try:
+    if not service:
+      raise ValueError("Calendar service is required.")
+
     if CALENDAR_ID is not None:
-      return CALENDAR_ID
+      return {"success": True, "error": None, "data": CALENDAR_ID}
   
-    calendars_results = service.calendarList().list.execute()
+    calendars_results = service.calendarList().list().execute()
     calendars = calendars_results.get("items", [])
   
     for calendar in calendars:
-      if calendar.get(CALENDAR_NAME):
-        return calendar["id"]
+      if calendar.get("summary") == CALENDAR_NAME:
+        return {"success": True, "error": None, "data": calendar["id"]}
   
     if AUTO_CREATE_CALENDAR is True:
-      calendar = createNewCalendar(CALENDAR_NAME)
+      return createNewCalendar(CALENDAR_NAME, service)
     
-      return calendar["id"]
+    raise ValueError(f"Calendar not found: {CALENDAR_NAME}")
   
   except Exception as exc:
-    return {"error": exc, "data": None, "success": "false"}
+    return {"success": False, "error": str(exc), "data": None}
     
     
 # gets the necessary credentials that the user is going to use to validate its instance in program
 # creates the toke.json which is the place where validation is found 
 # returns credentials 
 def getCredentials(tokenFile: str, credentialFile: str):
-  creds = None
-  
-  if os.path.exists(tokenFile):
-    try:
-      creds = Credentials.from_authorized_user_file(tokenFile, SCOPES_CALENDAR)
+  try:
+    creds = None
+    if not tokenFile:
+      raise ValueError("OAuth token file path is not configured.")
+    if not credentialFile:
+      raise ValueError("OAuth credential file path is not configured.")
     
-    except Exception:
-      creds = None
-
-  if not creds or not creds.valid:
-    if creds and creds.expired and creds.refresh_token:
+    if os.path.exists(tokenFile):
       try:
-        creds.refresh(Request())
+        creds = Credentials.from_authorized_user_file(tokenFile, SCOPES_CALENDAR)
       
       except Exception:
+        creds = None
+
+    if not creds or not creds.valid:
+      if creds and creds.expired and creds.refresh_token:
+        try:
+          creds.refresh(Request())
         
+        except Exception:
+          flow = InstalledAppFlow.from_client_secrets_file(credentialFile, SCOPES_CALENDAR)
+          creds = flow.run_local_server(port=0)
+      
+      else:
+        if not os.path.exists(credentialFile):
+          raise FileNotFoundError(f"OAuth Client Secrets file missing at: {credentialFile}")
+                  
         flow = InstalledAppFlow.from_client_secrets_file(credentialFile, SCOPES_CALENDAR)
         creds = flow.run_local_server(port=0)
-    
-    else:
-      if not os.path.exists(credentialFile):
-        raise FileNotFoundError(f"OAuth Client Secrets file missing at: {credentialFile}")
-                
-      flow = InstalledAppFlow.from_client_secrets_file(credentialFile, SCOPES_CALENDAR)
-      creds = flow.run_local_server(port=0)
-        
-        # Save the credentials for the next run
-    with open(tokenFile, "w") as token:
-      token.write(creds.to_json())
-            
-  return creds
+          
+      # Save the credentials for the next run
+      with open(tokenFile, "w") as token:
+        token.write(creds.to_json())
+              
+    return {"success": True, "error": None, "data": creds}
+  
+  except Exception as exc:
+    return {"success": False, "error": str(exc), "data": None}
 
 # creates secondary calendar
 def createNewCalendar(name: str, service) -> str:
-  tz = CALENDAR_TZ
+  try:
+    if not name:
+      raise ValueError("Calendar name is required.")
+    if not service:
+      raise ValueError("Calendar service is required.")
+
+    calendar_body = {
+      "summary": name,
+      "timeZone": CALENDAR_TZ
+    }
+    created_calendar = service.calendars().insert(body=calendar_body).execute()
+    return {"success": True, "error": None, "data": created_calendar["id"]}
   
-  calendar_body = {
-    "summary": name,
-    "timeZone": tz
-  }
-  created_calendar = service.calendars().insert(body=calendar_body).execute()
-  return created_calendar["id"]
+  except Exception as exc:
+    return {"success": False, "error": str(exc), "data": None}
 
 # gets events that are present in Google Calendar
 # is a variable output, change values to get in "maxResults="  
 # if summary not found in given, returns event without summary
 # debugging code
 def getEvents(service):
-  now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
-  
-  print("Getting the upcoming 10 events")
-  
-  events_result = (
-    service.events().list(
-      calendarId="primary", 
-      timeMin=now, 
-      maxResults=10, 
-      singleEvents=True, 
-      orderBy="startTime",
-      )
-    .execute()
-    )
-  
-  events = events_result.get("items", [])
-  if not events:
-    print("No upcoming events found.")
-    return
-  # Prints the start and name of the next 10 events
-  for event in events:
-    start = event["start"].get("dateTime") or event["start"].get("date")
+  try:
+    if not service:
+      raise ValueError("Calendar service is required.")
+
+    now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
     
-    if event.get("summary"): 
-      print(start, event, event["summary"])
-    else:
-      print(start, event)
+    events_result = (
+      service.events().list(
+        calendarId="primary", 
+        timeMin=now, 
+        maxResults=10, 
+        singleEvents=True, 
+        orderBy="startTime",
+        )
+      .execute()
+      )
+    
+    return {"success": True, "error": None, "data": events_result.get("items", [])}
+  
+  except Exception as exc:
+    return {"success": False, "error": str(exc), "data": None}
 
 # creates an event based on the list given in first parameter, gets the service 
 # (which is the gate-away to Google Calendar) and transition the values from the given list to Google Calendar
-def createEvent(gsEvent: str, service, calendar_id: str):
-  tz = CALENDAR_TZ
-  if gsEvent and service:
-    event_key = f"{gsEvent['timestamp']}_{getSemester()}_{gsEvent['summary']}_{gsEvent['start']}_{gsEvent['location']}_{calendar_id}"
+def createEvent(gsEvent: dict, service, calendar_id: str):
+  try:
+    if not gsEvent:
+      raise ValueError("Google Sheets event is required.")
+    if not isinstance(gsEvent, dict):
+      raise TypeError("Google Sheets event must be a dictionary.")
+    if not service:
+      raise ValueError("Calendar service is required.")
+    if not calendar_id:
+      raise ValueError("Calendar ID is required.")
+
+    event_key_response = build_event_key(gsEvent, calendar_id)
+    if not event_key_response["success"]:
+      return event_key_response
+
+    event_key = event_key_response["data"]
     
-    if event_already_exists(service,calendar_id, event_key):
+    exists_response = event_already_exists(service, calendar_id, event_key)
+    if not exists_response["success"]:
+      return exists_response
+
+    if exists_response["data"]:
       print(f"Skipping duplicate: {event_key}")
-      return None
+      return {
+        "success": True,
+        "error": None,
+        "data": {"status": "skipped_duplicate", "event_key": event_key, "event": None},
+      }
     
-    colorEvent = eventType(gsEvent['organizer'])
-    if "DateTime" in gsEvent["start"]:
-      start_dt =  {"dateTime" : gsEvent['start']['dateTime'],"timeZone" : tz},
-      end_dt = {"dateTime" : gsEvent['end']['dateTime'], "timeZone" : tz}
-    
-    else:
-      start_dt =  {"dateTime" : gsEvent['start'],"timeZone" : tz},
-      end_dt = {"dateTime" : gsEvent['end'], "timeZone" : tz}
+    color_response = eventType(gsEvent["organizer"])
+    if not color_response["success"]:
+      return color_response
+
+    start_dt = dict(gsEvent["start"])
+    end_dt = dict(gsEvent["end"])
+
+    if "dateTime" in start_dt:
+      start_dt["timeZone"] = CALENDAR_TZ
+    if "dateTime" in end_dt:
+      end_dt["timeZone"] = CALENDAR_TZ
     
     body = {
-      "summary" : gsEvent['summary'],
-      "location" : gsEvent['location'],
-      "description" : gsEvent['description'],
-      "colorId" : colorEvent,
+      "summary" : gsEvent["summary"],
+      "location" : gsEvent["location"],
+      "description" : gsEvent["description"],
+      "colorId" : color_response["data"],
       "start" : start_dt,
       "end" : end_dt,
       "extendedProperties": {
         "private": {
-            "ama_row_key": event_key  # e.g. "2026-08-01_Workshop"
+            "ama_row_key": event_key  
           }
       }
     }
     event = service.events().insert(calendarId=calendar_id, body=body).execute()
     print(f"event created {event.get('htmlLink')}")
     
-    return event 
+    return {
+      "success": True,
+      "error": None,
+      "data": {"status": "created", "event_key": event_key, "event": event},
+    }
   
-  else:
-    raise HttpError("this is not a valid htmlLink")
+  except Exception as exc:
+    return {"success": False, "error": str(exc), "data": None}
 
 # helper to skip already existing events
 def event_already_exists(service, calendar_id: str, event_key):
+  try:
+    if not service:
+      raise ValueError("Calendar service is required.")
+    if not calendar_id:
+      raise ValueError("Calendar ID is required.")
+    if not event_key:
+      raise ValueError("Event key is required.")
+
     results = service.events().list(calendarId=calendar_id, privateExtendedProperty=f"ama_row_key={event_key}").execute()
-    return len(results.get("items", [])) > 0
+    return {"success": True, "error": None, "data": len(results.get("items", [])) > 0}
+  
+  except Exception as exc:
+    return {"success": False, "error": str(exc), "data": None}
 
 # helper to get the color for specific event type
 def eventType(eventSummary):
-  key = str(eventSummary).strip().title()
-  return EVENT_TYPE_MAP.get(key, 0)
+  try:
+    key = str(eventSummary).strip().title()
+    return {"success": True, "error": None, "data": EVENT_TYPE_MAP.get(key, 0)}
+  
+  except Exception as exc:
+    return {"success": False, "error": str(exc), "data": None}
+
+
+def build_event_key(gsEvent: dict, calendar_id: str):
+  try:
+    semester_response = getSemester()
+    if not semester_response["success"]:
+      return semester_response
+
+    parts = "|".join([
+      semester_response["data"],
+      gsEvent.get("summary", ""),
+      gsEvent.get("organizer", ""),
+      str(gsEvent.get("start", "")),
+      gsEvent.get("location", ""),
+      calendar_id,
+    ]) # "Fall '26|Disney Speaker_Workshop|2026-09-14T08:00:00|BA2|AMA Calendar"
+    event_key = hashlib.sha256(parts.encode("utf-8")).hexdigest()
+    
+    return {"success": True, "error": None, "data": event_key}
+  
+  except Exception as exc:
+    return {"success": False, "error": str(exc), "data": None}

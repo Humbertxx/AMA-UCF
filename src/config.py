@@ -15,7 +15,7 @@ TOKEN_FILE_PATH = os.getenv("TOKEN_FILE_PATH")
 
 SCOPES_CALENDAR   = ["https://www.googleapis.com/auth/calendar"]
 
-SEMESTER_FORMAT = os.getenv("SEMESTER_FORMAT")
+SEMESTER_FORMAT = os.getenv("SEMESTER_FORMAT", "{season} '{short_yr}")
 AUTO_CREATE_CALENDAR=True
 
 EVENT_TYPE_MAP = {
