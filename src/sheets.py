@@ -47,6 +47,7 @@ def get_all_rows(ws: Worksheet) -> pd.DataFrame:
         #rows = ws.get_all_records(value_render_option="FORMULA")[2:]
         df = get_as_dataframe(ws, evaluate_formulas=True, skiprows=2)
         df["event_date"] = pd.to_datetime("1899-12-30") + pd.to_timedelta(df["Date"], unit="D")
+        df = df.dropna(subset=["Date", "Event"])  # drop rows missing required fields
         
         return {"success": True, "error": None, "data": df}
     
@@ -64,16 +65,16 @@ def normalizingEvents(rows) -> list:
 
         events = []
         for row in rows:
-            serial = row.get("Date")
-            if not serial:
-                continue
+            #serial = row.get("Date")
+            #if not serial:
+            #    continue  // drop in previous dataframe conversion
 
             try:
-                event_date_response = serialToDate(serial)
-                if not event_date_response["success"]:
-                    return event_date_response # fix here
+                #event_date_response = serialToDate(serial)
+                #if not event_date_response["success"]:
+                #    return event_date_response # remove as code will not require util serialToDate with dataframe
 
-                event_date = event_date_response["data"]
+                event_date = row["data"]
                 today = datetime.today().date()
                 if event_date < today:
                     continue
