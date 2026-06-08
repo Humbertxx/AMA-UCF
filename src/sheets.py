@@ -1,8 +1,10 @@
 from pathlib import Path
 from datetime import datetime, timedelta
+
 import gspread
 from gspread import Worksheet
-from typing import Dict, List
+from gspread_dataframe import get_as_dataframe 
+import pandas as pd
 
 from src.utils import serialToDate, getSemester, fractionToTime
 from src.config import SPREADSHEET_ID, CREDENTIALS_WORKSHEET_FILE_PATH
@@ -37,16 +39,21 @@ def get_worksheet() -> Worksheet:
     except Exception as exc:
         return {"success": False, "error": str(exc), "data": None}
 
-def get_all_rows(ws: Worksheet) -> List[Dict[str, int | float | str]]:
+def get_all_rows(ws: Worksheet) -> pd.DataFrame:
     try:
         if not ws:
             raise ValueError("Worksheet is required.")
 
-        rows = ws.get_all_records(value_render_option="FORMULA")[2:]
-        return {"success": True, "error": None, "data": rows}
+        #rows = ws.get_all_records(value_render_option="FORMULA")[2:]
+        df = get_as_dataframe(ws, evaluate_formulas=True, skiprows=2)
+        df["event_date"] = pd.to_datetime("1899-12-30") + pd.to_timedelta(df["Date"], unit="D")
+        
+        return {"success": True, "error": None, "data": df}
     
     except Exception as exc:
         return {"success": False, "error": str(exc), "data": None}
+    
+    
 
 # this function get relevant dates that are numeric in FORMULA FORM, then its continues to get standard way 
 # of getting dates in Google Calendar API 
