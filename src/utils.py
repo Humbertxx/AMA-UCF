@@ -1,10 +1,10 @@
-from datetime import timedelta, date, time
+from datetime import date, time
 
 from src.config import SEMESTER_FORMAT
 
 
 # gets the current semester based on current year and month
-def getSemester() -> str:
+def getSemester() -> dict:
     try:
         current_date = date.today()
         full_yr = current_date.year        # 2026
@@ -18,20 +18,8 @@ def getSemester() -> str:
     except Exception as exc:
         return {"success": False, "error": str(exc), "data": None}
 
-# gets the serial number as given in FORMULA in Google Sheet and standardize it to simple date
-def serialToDate(serial: float) -> date:
-    try:
-        if serial in (None, ""):
-            raise ValueError("Date serial is required.")
-
-        converted_date = date(1899, 12, 30) + timedelta(days=float(serial))
-        return {"success": True, "error": None, "data": converted_date}
-    
-    except Exception as exc:
-        return {"success": False, "error": str(exc), "data": None}
-
 # gets the fraction time give in FORMULA in Google Sheet and standardize it to a simple time
-def fractionToTime(fraction: float) -> time:
+def fractionToTime(fraction: float) -> dict:
     try:
         if fraction in (None, ""):
             return {"success": True, "error": None, "data": None} # all day calendar

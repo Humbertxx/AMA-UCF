@@ -1,6 +1,6 @@
 import logging
-from src.sheets import get_worksheet, get_all_rows, normalizingEvents
-from src.calendar import createEvent, createCalendarService, calendar_id
+from src.sheets import get_spreadsheets, get_credentials, calendar_spreadsheet, normalize_calendar
+from src.calendar import create_event, create_calendar_service, calendar_id
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -9,17 +9,18 @@ def main():
     run_snapshot()
     
 def run_snapshot(): 
-    ws = unwrap_response(get_worksheet(), "get worksheet")
-    rows = unwrap_response(get_all_rows(ws), "get worksheet rows")
-    events = unwrap_response(normalizingEvents(rows), "normalize events")
-    service = unwrap_response(createCalendarService(), "create calendar service")
+    gc = unwrap_response(get_credentials(), "get credentials")
+    sh = unwrap_response(get_spreadsheets(gc), "get spreadsheet")
+    cs = unwrap_response(calendar_spreadsheet(sh), "get calendar spreadsheet")
+    events = unwrap_response(normalize_calendar(cs), "normalize events")
+    service = unwrap_response(create_calendar_service(), "create calendar service")
     cal_id = unwrap_response(calendar_id(service), "resolve calendar ID")
     
     created_count = 0
     skipped_count = 0 # in order to see activity count 
     
     for event in events:
-        result = unwrap_response(createEvent(event, service, cal_id), "create calendar event")
+        result = unwrap_response(create_event(event, service, cal_id), "create calendar event")
         if result["status"] == "created":
             created_count += 1
         elif result["status"] == "skipped_duplicate":

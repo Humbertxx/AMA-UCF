@@ -40,28 +40,10 @@ Analytics should include:
 Add tests for the core normalization helpers:
 
 - `normalizingEvents()`
-- `serialToDate()`
 
-The tests should cover valid rows, missing dates, past events, Google Sheets serial date conversion, and malformed input.
+The tests should cover valid rows, missing dates, past events, and malformed input.
 
-### 4. Add Pandas DataFrame Support
-
-Add `gspread-dataframe` and use `get_as_dataframe()` instead of relying only on `get_all_records()`.
-
-This will allow the pipeline to:
-
-- Clean column types more intentionally
-- Handle empty cells and null values properly
-- Normalize date, time, and event-type fields before calendar sync
-- Treat the sync as a real tabular data pipeline rather than a simple row script
-
-Expected additions:
-
-- `pandas`
-- `numpy`
-- `gspread-dataframe`
-
-### 5. Parameterize Multiple Semesters and Sheets
+### 4. Parameterize Multiple Semesters and Sheets
 
 Add a `--semester` CLI argument so the same code can sync different semester tabs.
 
@@ -139,7 +121,7 @@ The Google OAuth flow depends on two private JSON files:
 
 Both files must stay private and should be ignored by Git. For GitHub Actions, store their contents as encrypted repository secrets and recreate them during the workflow run, or use a service account setup if the final pipeline moves away from local OAuth.
 
-Recommended local secret layout:
+local secret layout:
 
 ```text
 private/
@@ -147,13 +129,6 @@ private/
 └── google_api_key.json
 ```
 
-Recommended `.gitignore` entry:
-
-```gitignore
-private/
-```
-
-This keeps all local-only Google credential material in one obvious place, makes Git protection simple, and prevents secret files from being scattered through the project root.
 
 ## Local Development
 
@@ -172,26 +147,7 @@ uv run python main.py
 
 ## GitHub Actions Runtime
 
-The production version should run through GitHub Actions on a schedule and through manual dispatch.
-
-Recommended workflow triggers:
-
-- Scheduled sync, such as daily or weekly
-- Manual `workflow_dispatch` for ad hoc syncs
-- Optional semester input for reusable runs
-
-Example workflow intent:
-
-```yaml
-on:
-  schedule:
-    - cron: "0 13 * * 1"
-  workflow_dispatch:
-    inputs:
-      semester:
-        description: "Google Sheet tab to sync"
-        required: false
-```
+The production version is run through GitHub Actions on a schedule and through manual dispatch.
 
 ## Google Cloud Requirements
 
@@ -211,3 +167,5 @@ Use least-privilege credentials where possible, and share the target Sheet and C
 - Add a `--semester` argument for reusable semester-based runs.
 
 Created by Humberto Bohorquez. Built with Python, Google APIs, and GitHub Actions.
+
+Licensed under MIT. See LICENSE for details.

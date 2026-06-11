@@ -12,11 +12,8 @@ from src.config import SCOPES_CALENDAR, TOKEN_FILE_PATH, \
   CREDENTIALS_CALENDAR_FILE_PATH, CALENDAR_TZ, CALENDAR_NAME, \
     EVENT_TYPE_MAP, CALENDAR_ID, AUTO_CREATE_CALENDAR
     
-
-
-
 # validation and retrieval of Google Calendar         
-def createCalendarService():
+def create_calendar_service():
   try:  
     api_key_path = CREDENTIALS_CALENDAR_FILE_PATH
     token_path = TOKEN_FILE_PATH
@@ -24,7 +21,7 @@ def createCalendarService():
     if not api_key_path or not os.path.exists(api_key_path):
       raise FileNotFoundError("Google Calendar credential path is not configured or file is missing.")
 
-    credentials_response = getCredentials(str(token_path), str(api_key_path))
+    credentials_response = get_credentials(str(token_path), str(api_key_path))
     if not credentials_response["success"]:
       return credentials_response
 
@@ -53,7 +50,7 @@ def calendar_id(service):
         return {"success": True, "error": None, "data": calendar["id"]}
   
     if AUTO_CREATE_CALENDAR is True:
-      return createNewCalendar(CALENDAR_NAME, service)
+      return create_new_calendar(CALENDAR_NAME, service)
     
     raise ValueError(f"Calendar not found: {CALENDAR_NAME}")
   
@@ -64,7 +61,7 @@ def calendar_id(service):
 # gets the necessary credentials that the user is going to use to validate its instance in program
 # creates the toke.json which is the place where validation is found 
 # returns credentials 
-def getCredentials(tokenFile: str, credentialFile: str):
+def get_credentials(tokenFile: str, credentialFile: str):
   try:
     creds = None
     if not tokenFile:
@@ -105,7 +102,7 @@ def getCredentials(tokenFile: str, credentialFile: str):
     return {"success": False, "error": str(exc), "data": None}
 
 # creates secondary calendar
-def createNewCalendar(name: str, service) -> str:
+def create_new_calendar(name: str, service) -> str:
   try:
     if not name:
       raise ValueError("Calendar name is required.")
@@ -126,7 +123,7 @@ def createNewCalendar(name: str, service) -> str:
 # is a variable output, change values to get in "maxResults="  
 # if summary not found in given, returns event without summary
 # debugging code
-def getEvents(service):
+def get_events(service):
   try:
     if not service:
       raise ValueError("Calendar service is required.")
@@ -151,7 +148,7 @@ def getEvents(service):
 
 # creates an event based on the list given in first parameter, gets the service 
 # (which is the gate-away to Google Calendar) and transition the values from the given list to Google Calendar
-def createEvent(gsEvent: dict, service, calendar_id: str):
+def create_event(gsEvent: dict, service, calendar_id: str):
   try:
     if not gsEvent:
       raise ValueError("Google Sheets event is required.")
@@ -180,7 +177,7 @@ def createEvent(gsEvent: dict, service, calendar_id: str):
         "data": {"status": "skipped_duplicate", "event_key": event_key, "event": None},
       }
     
-    color_response = eventType(gsEvent["organizer"])
+    color_response = event_type(gsEvent["organizer"])
     if not color_response["success"]:
       return color_response
 
@@ -234,7 +231,7 @@ def event_already_exists(service, calendar_id: str, event_key):
     return {"success": False, "error": str(exc), "data": None}
 
 # helper to get the color for specific event type
-def eventType(eventSummary):
+def event_type(eventSummary):
   try:
     key = str(eventSummary).strip().title()
     return {"success": True, "error": None, "data": EVENT_TYPE_MAP.get(key, 0)}
@@ -242,7 +239,7 @@ def eventType(eventSummary):
   except Exception as exc:
     return {"success": False, "error": str(exc), "data": None}
 
-
+# build unique identifier to sync worksheet to calendar efficiently
 def build_event_key(gsEvent: dict, calendar_id: str):
   try:
     semester_response = getSemester()

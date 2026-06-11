@@ -10,4 +10,5 @@ dependencies = [
     "google-auth-httplib2>=0.4.0",
     "google-auth-oauthlib>=1.4.0",
     "gspread>=6.2.1",
+    "gspread-dataframe>=4.0.0",
 ]
