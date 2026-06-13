@@ -1,4 +1,5 @@
 from datetime import date, time
+import argparse
 
 from src.config import SEMESTER_FORMAT
 
@@ -36,4 +37,8 @@ def fractionToTime(fraction: float) -> dict:
     
     except Exception as exc:
         return {"success": False, "error": str(exc), "data": None}
-    
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--semester")
+    return parser.parse_args()

@@ -50,15 +50,16 @@ def get_spreadsheets(gc: Client) -> dict:
         return {"success": False, "error": str(exc), "data": None}
 
 # get the worksheet intended to be use for only the calendar 
-def calendar_spreadsheet(sh: list[Spreadsheet]) -> dict: 
+def calendar_spreadsheet(sh: list[Spreadsheet], semester=None) -> dict: 
     try: 
-        semester_response = getSemester()
+        semester_response =  getSemester()["data"] if semester is None else semester
+        
         if not semester_response["success"]:
             raise ValueError(semester_response["error"])
         if semester_response["data"] is None:
             raise ValueError("semester is required.")
 
-        worksheet = sh[0].worksheet(str(semester_response["data"]))
+        worksheet = sh[0].worksheet(str(semester_response))
     
         return {"success": True, "error": None, "data": worksheet}
     
