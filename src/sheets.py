@@ -96,6 +96,7 @@ def get_all_worksheets(spreadsheets: list[Spreadsheet]) -> pd.DataFrame:
             
             except Exception:
                 continue
+            
     return pd.concat(all_dfs, ignore_index=True)
     
 # normalize rows, drop empty rows that do not hold dates nor events, convert to dataframe
