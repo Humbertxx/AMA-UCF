@@ -3,7 +3,6 @@ import argparse
 
 from src.config import SEMESTER_FORMAT
 
-
 # gets the current semester based on current year and month
 def getSemester() -> dict:
     try:

@@ -17,8 +17,16 @@ from .sheets import (
     normalize_rows,
     worksheet_to_dataframe,
 )
+from .utils import (
+    parse_args
+)
+from .audit import (
+    write_sync_log
+)
 
 __all__ = [
+    "write_sync_log",
+    "parse_args",
     "build_event_key",
     "calendar_id",
     "calendar_spreadsheet",
