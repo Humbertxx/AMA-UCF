@@ -11,3 +11,4 @@ arr = np.array(data[1:], dtype=object)  # skip header row
 
 # count events by type (column index 5 = "Type")
 types, counts = np.unique(arr[:, 5], return_counts=True)
+
