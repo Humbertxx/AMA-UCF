@@ -114,7 +114,10 @@ def write_to_sheet(gc, results):
         raise ValueError(sh_response["error"])
 
     sh = sh_response["data"]
+    
     ws = sh[0].worksheet("Analytics")
+    if ws is None:
+        ws = gc.create("Analytics")
 
     try:
         cell_title = ws.find("Insightful Analytics")
