@@ -2,14 +2,14 @@ from datetime import date, timedelta
 
 import pandas as pd
 
-from src.sheets import normalize_calendar
+from ama_ucf.sheets import normalize_calendar
 
 
 def make_event_row(**overrides):
     row = {
         "event_date": date.today() + timedelta(days=7),
         "time": 0.5,
-        "Event": "Super marketing Workshop",
+        "Event": "Marketing Workshop",
         "Description": "Hollywood Stars and Celebrities: What Do They Know? Do They Know Things?? Let's Find Out!",
         "Location": "BA1 135",
         "Type": "Workshop",
@@ -17,7 +17,7 @@ def make_event_row(**overrides):
     row.update(overrides)
     return row
 
-
+# mock data pass into the test functions below
 def test_normalize_calendar_builds_timed_future_event_payload():
     df = pd.DataFrame([make_event_row()])
 
@@ -29,7 +29,7 @@ def test_normalize_calendar_builds_timed_future_event_payload():
         "data": [
             {
                 "summary": "Marketing Workshop",
-                "description": "Learn campaign planning basics.",
+                "description": "Hollywood Stars and Celebrities: What Do They Know? Do They Know Things?? Let's Find Out!",
                 "location": "BA1 135",
                 "organizer": "Workshop",
                 "start": {

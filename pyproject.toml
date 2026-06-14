@@ -1,7 +1,7 @@
 [project]
 name = "ama-ucf"
 version = "0.1.0"
-description = "Add your description here"
+description = "From a Google Sheet to a Google Calendar, design Analytics AMA Calendar Sync Tool."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -12,3 +12,14 @@ dependencies = [
     "gspread>=6.2.1",
     "gspread-dataframe>=4.0.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.0",
+]
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["ama_ucf*"]

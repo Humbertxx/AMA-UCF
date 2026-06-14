@@ -6,8 +6,8 @@ from gspread import Client, Worksheet, Spreadsheet
 from gspread_dataframe import get_as_dataframe 
 import pandas as pd
 
-from src.utils import getSemester, fractionToTime
-from src.config import SPREADSHEET_ID, CREDENTIALS_WORKSHEET_FILE_PATH, ARCHIVE_ID
+from ama_ucf.utils import getSemester, fractionToTime
+from ama_ucf.config import SPREADSHEET_ID, CREDENTIALS_WORKSHEET_FILE_PATH, ARCHIVE_ID
 
 # validation of credentials
 def get_credentials() -> dict:

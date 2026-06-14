@@ -1,7 +1,7 @@
 from datetime import date, time
 import argparse
 
-from src.config import SEMESTER_FORMAT
+from ama_ucf.config import SEMESTER_FORMAT
 
 # gets the current semester based on current year and month
 def getSemester() -> dict:
@@ -41,3 +41,17 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--semester")
     return parser.parse_args()
+
+def unwrap_response(response, action: str):
+    if not isinstance(response, dict):
+        raise RuntimeError(f"Could not {action}: expected response dictionary, got {type(response).__name__}")
+
+    if "success" not in response or "error" not in response or "data" not in response:
+        raise RuntimeError(f"Could not {action}: malformed response {response}")
+
+    if not response["success"]:
+        raise RuntimeError(f"Could not {action}: {response['error']}")
+    if response["data"] is None:
+        raise RuntimeError(f"Could not {action}: response data is empty")
+
+    return response["data"]

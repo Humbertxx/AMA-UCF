@@ -7,8 +7,8 @@ import datetime
 import os.path
 import hashlib
 
-from src.utils import getSemester
-from src.config import SCOPES_CALENDAR, TOKEN_FILE_PATH, \
+from ama_ucf.utils import getSemester
+from ama_ucf.config import SCOPES_CALENDAR, TOKEN_FILE_PATH, \
   CREDENTIALS_CALENDAR_FILE_PATH, CALENDAR_TZ, CALENDAR_NAME, \
     EVENT_TYPE_MAP, CALENDAR_ID, AUTO_CREATE_CALENDAR
     
@@ -152,8 +152,6 @@ def create_event(gsEvent: dict, service, calendar_id: str):
   try:
     if not gsEvent:
       raise ValueError("Google Sheets event is required.")
-    if not isinstance(gsEvent, dict):
-      raise TypeError("Google Sheets event must be a dictionary.")
     if not service:
       raise ValueError("Calendar service is required.")
     if not calendar_id:
@@ -253,7 +251,7 @@ def build_event_key(gsEvent: dict, calendar_id: str):
       str(gsEvent.get("start", "")),
       gsEvent.get("location", ""),
       calendar_id,
-    ]) # "Fall '26|Disney Speaker_Workshop|2026-09-14T08:00:00|BA2|AMA Calendar"
+    ]) # "Fall '26|Disney Speaker_Workshop|2026-09-14T08:00:00|BA2|{AMA Calendar ID}"
     event_key = hashlib.sha256(parts.encode("utf-8")).hexdigest()
     
     return {"success": True, "error": None, "data": event_key}

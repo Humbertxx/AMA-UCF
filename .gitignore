@@ -2,3 +2,6 @@
 private/
 .venv/
 __pycache__/
+
+ama_ucf.egg-info/
+.pytest_cache/

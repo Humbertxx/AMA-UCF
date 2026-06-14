@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 from gspread_dataframe import set_with_dataframe
 
-from src.sheets import get_spreadsheets
+from ama_ucf.sheets import get_spreadsheets
 
-def analytics(
+def analytics_tab(
     gc,
     all_worksheets: pd.DataFrame | None = None,
     include_cross_segment_evaluation: bool = True,
@@ -65,8 +65,15 @@ def cross_segment_evaluation(df : pd.DataFrame):
 def event_density(df : pd.DataFrame):
     if df.empty:
         raise ValueError("Dataframe is empty")
-    
-    weekly_count  = df.set_index("event_date").resample('W').size().reset_index(name="event_count")
+
+    df = df.copy()
+    df["event_date"] = pd.to_datetime(df["event_date"], errors="coerce")
+    df = df.dropna(subset=["event_date"])
+
+    if df.empty:
+        raise ValueError("Dataframe has no valid event dates.")
+
+    weekly_count = df.set_index("event_date").resample("W").size().reset_index(name="event_count")
     
     return weekly_count
 
@@ -94,7 +101,7 @@ def event_type_mix(df: pd.DataFrame):
         "share_of_events": shares,
         "cumulative_share": cumulative_shares
         }
-    ).reset_index(name="event_count")
+    )
          
 def write_to_sheet(gc, results):
     if results is None:

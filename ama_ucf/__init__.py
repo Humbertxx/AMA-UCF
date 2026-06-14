@@ -18,13 +18,26 @@ from .sheets import (
     worksheet_to_dataframe,
 )
 from .utils import (
-    parse_args
+    parse_args,
+    unwrap_response,
+    
 )
 from .audit import (
     write_sync_log
 )
+from .analytics import (
+    analytics_tab,
+    cross_segment_evaluation,
+    event_density,
+    event_type_mix,
+)
 
 __all__ = [
+    "cross_segment_evaluation",
+    "event_density",
+    "event_type_mix",
+    "analytics_tab",
+    "unwrap_response",
     "write_sync_log",
     "parse_args",
     "build_event_key",

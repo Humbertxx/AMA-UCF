@@ -20,22 +20,22 @@ The intention is to turn a student organization's planning spreadsheet into a re
 Google Sheets
     |
     v
-src.sheets
+ama_ucf.sheets
     - authenticate with service account
     - open active and archive spreadsheets
     - load worksheet tabs into DataFrames
     - normalize dates, times, and event rows
     |
-    +--> src.calendar
+    +--> ama_ucf.calendar
     |       - build Google Calendar payloads
     |       - create stable duplicate-detection keys
     |       - skip existing events
     |       - create new Google Calendar events
     |
-    +--> src.audit
+    +--> ama_ucf.audit
     |       - write sync_log.csv
     |
-    +--> src.analytics
+    +--> ama_ucf.analytics
             - calculate event density
             - calculate cross-segment summaries
             - calculate event type mix with NumPy
@@ -125,7 +125,7 @@ normalize_rows()
 .
 ├── main.py                      # Pipeline entry point
 ├── pyproject.toml               # Python version and dependencies
-├── src/
+├── ama_ucf/
 │   ├── analytics.py             # Analytics tables and Analytics worksheet writer
 │   ├── audit.py                 # CSV audit log writer
 │   ├── calendar.py              # Google Calendar auth, duplicate checks, event creation
@@ -133,6 +133,7 @@ normalize_rows()
 │   ├── sheets.py                # Google Sheets access and row normalization
 │   └── utils.py                 # CLI args, semester naming, time conversion
 ├── tests/
+│   ├── test_analytics.py        # Tests for analytics calculations
 │   └── test_sheets.py           # Tests for calendar normalization behavior
 ├── private/                     # Local credentials; ignored by Git
 ├── sync_log.csv                 # Generated audit export
@@ -160,7 +161,7 @@ The workbook should also include an `Analytics` tab if you want analytics tables
 
 ## What Each Module Does
 
-### `src.sheets`
+### `ama_ucf.sheets`
 
 Handles Google Sheets ingestion.
 
@@ -172,7 +173,7 @@ Handles Google Sheets ingestion.
 - `normalize_rows()` drops unusable rows and converts Google serial dates into Python dates.
 - `normalize_calendar()` filters past events and turns normalized rows into Google Calendar event payloads.
 
-### `src.calendar`
+### `ama_ucf.calendar`
 
 Handles Google Calendar operations.
 
@@ -184,7 +185,7 @@ Handles Google Calendar operations.
 - Checks Google Calendar private extended properties to skip duplicates.
 - Inserts new timed or all-day events.
 
-### `src.audit`
+### `ama_ucf.audit`
 
 Writes a simple CSV audit artifact:
 
@@ -194,7 +195,7 @@ write_sync_log(df, path="sync_log.csv")
 
 This is intentionally lightweight. The CSV is useful for local debugging, GitHub Actions artifacts, and quick inspection without adding database infrastructure.
 
-### `src.analytics`
+### `ama_ucf.analytics`
 
 Builds analytics tables from normalized all-semester data and writes them to the `Analytics` tab.
 
