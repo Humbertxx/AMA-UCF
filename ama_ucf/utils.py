@@ -13,16 +13,16 @@ def getSemester() -> dict:
     
         fmt = SEMESTER_FORMAT
         semester = fmt.format(season=season, short_yr=short_yr, full_yr=full_yr)
-        return {"success": True, "error": None, "data": semester}
+        return evaluate_response_status(semester)
     
     except Exception as exc:
-        return {"success": False, "error": str(exc), "data": None}
+        return evaluate_response_status(None, str(exc))
 
 # gets the fraction time give in FORMULA in Google Sheet and standardize it to a simple time
 def fractionToTime(fraction: float) -> dict:
     try:
         if fraction in (None, ""):
-            return {"success": True, "error": None, "data": None} # all day calendar
+            return evaluate_response_status(None) # all day calendar
         
         fraction = float(fraction)
         if not (0 <= fraction < 1):
@@ -32,15 +32,22 @@ def fractionToTime(fraction: float) -> dict:
         hours = int(total_seconds // 3600)
         minutes = int((total_seconds % 3600) // 60)
             
-        return {"success": True, "error": None, "data": time(hours, minutes)}
+        return evaluate_response_status(time(hours, minutes))
     
     except Exception as exc:
-        return {"success": False, "error": str(exc), "data": None}
+        return evaluate_response_status(None, str(exc))
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--semester")
     return parser.parse_args()
+
+
+def evaluate_response_status(data, error: str | None = None):
+    if error:
+        return {"success": False, "error": error, "data": None}
+
+    return {"success": True, "error": None, "data": data}
 
 def unwrap_response(response, action: str):
     if not isinstance(response, dict):

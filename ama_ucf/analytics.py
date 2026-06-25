@@ -3,6 +3,7 @@ import pandas as pd
 from gspread_dataframe import set_with_dataframe
 
 from ama_ucf.sheets import get_spreadsheets
+from ama_ucf.utils import evaluate_response_status
 
 def analytics_tab(
     gc,
@@ -29,10 +30,10 @@ def analytics_tab(
             
         write_to_sheet(gc, results)
         
-        return {"success": True, "error": None, "data": results}
+        return evaluate_response_status(results)
 
     except Exception as exc:
-        return {"success": False, "error": str(exc), "data": None}
+        return evaluate_response_status(None, str(exc))
 
 # cross segment evaluation
 def cross_segment_evaluation(df : pd.DataFrame):
@@ -105,7 +106,7 @@ def event_type_mix(df: pd.DataFrame):
          
 def write_to_sheet(gc, results):
     if results is None:
-        return {"success": True, "error": None, "data": "nothing to write home about!"}
+        return evaluate_response_status("nothing to write home about!")
     
     client = gc["data"]
     sh_response = get_spreadsheets(client)
@@ -137,4 +138,4 @@ def write_to_sheet(gc, results):
     if "event_type_mix" in results:
         set_with_dataframe(ws, results["event_type_mix"], row=write_to[0], col=write_to[1] + 10)
 
-    return {"success": True, "error": None, "data": "analytics written"}
+    return evaluate_response_status("analytics written")

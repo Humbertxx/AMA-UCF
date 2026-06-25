@@ -6,7 +6,7 @@ from gspread import Client, Worksheet, Spreadsheet
 from gspread_dataframe import get_as_dataframe 
 import pandas as pd
 
-from ama_ucf.utils import getSemester, fractionToTime
+from ama_ucf.utils import evaluate_response_status, fractionToTime, getSemester
 from ama_ucf.config import SPREADSHEET_ID, CREDENTIALS_WORKSHEET_FILE_PATH, ARCHIVE_ID
 
 # validation of credentials
@@ -24,10 +24,10 @@ def get_credentials() -> dict:
 
         gc = gspread.service_account(filename=str(credential_path))
 
-        return {"success": True, "error": None, "data": gc}
+        return evaluate_response_status(gc)
     
     except Exception as exc:
-        return {"success": False, "error": str(exc), "data": None}
+        return evaluate_response_status(None, str(exc))
 
 # get spreadsheets from archive and the calendar event master list
 def get_spreadsheets(gc: Client) -> dict: 
@@ -44,27 +44,27 @@ def get_spreadsheets(gc: Client) -> dict:
         
         spreadsheets = [gc.open_by_key(str(worksheet_id)),gc.open_by_key(str(archive_id))]
     
-        return {"success": True, "error": None, "data": spreadsheets}
+        return evaluate_response_status(spreadsheets)
     
     except Exception as exc:
-        return {"success": False, "error": str(exc), "data": None}
+        return evaluate_response_status(None, str(exc))
 
 # get the worksheet intended to be use for only the calendar 
 def calendar_spreadsheet(sh: list[Spreadsheet], semester=None) -> dict: 
     try: 
-        semester_response =  getSemester()["data"] if semester is None else semester
+        semester_response = getSemester() if semester is None else evaluate_response_status(semester)
         
         if not semester_response["success"]:
             raise ValueError(semester_response["error"])
         if semester_response["data"] is None:
             raise ValueError("semester is required.")
 
-        worksheet = sh[0].worksheet(str(semester_response))
+        worksheet = sh[0].worksheet(str(semester_response["data"]))
     
-        return {"success": True, "error": None, "data": worksheet}
+        return evaluate_response_status(worksheet)
     
     except Exception as exc:
-        return {"success": False, "error": str(exc), "data": None}
+        return evaluate_response_status(None, str(exc))
 
 # convert a Google worksheet into a dataframe that downstream normalization can use
 def worksheet_to_dataframe(ws: Worksheet) -> dict:
@@ -75,10 +75,10 @@ def worksheet_to_dataframe(ws: Worksheet) -> dict:
         df = get_as_dataframe(ws, evaluate_formulas=True, skiprows=2)
         df["semester"] = ws.title
 
-        return {"success": True, "error": None, "data": df}
+        return evaluate_response_status(df)
 
     except Exception as exc:
-        return {"success": False, "error": str(exc), "data": None}
+        return evaluate_response_status(None, str(exc))
     
 # get all worksheet to compare and analyze the difference worksheets
 def get_all_worksheets(spreadsheets: list[Spreadsheet]) -> pd.DataFrame:
@@ -109,10 +109,10 @@ def normalize_rows(df_combine: pd.DataFrame) -> dict:
         df = df.dropna(subset=["Date", "Event"])
         df["event_date"] = (pd.to_datetime("1899-12-30") + pd.to_timedelta(df["Date"], unit="D")).dt.date
         
-        return {"success": True, "error": None, "data": df}
+        return evaluate_response_status(df)
     
     except Exception as exc:
-        return {"success": False, "error": str(exc), "data": None}
+        return evaluate_response_status(None, str(exc))
 
 # this function get relevant dates that are numeric in FORMULA FORM, then its continues to construct API payload 
 def normalize_calendar(df_dict: dict) -> dict:
@@ -152,7 +152,7 @@ def normalize_calendar(df_dict: dict) -> dict:
                 "end": end_field,
             })
 
-        return {"success": True, "error": None, "data": events}
+        return evaluate_response_status(events)
     
     except Exception as exc:
-        return {"success": False, "error": str(exc), "data": None}
+        return evaluate_response_status(None, str(exc))

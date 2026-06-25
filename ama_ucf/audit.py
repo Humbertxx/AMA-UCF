@@ -1,6 +1,8 @@
 from pathlib import Path
 import pandas as pd
 
+from ama_ucf.utils import evaluate_response_status
+
 def write_sync_log(df: pd.DataFrame, path: str = "sync_log.csv") -> dict:
     try:
         if df is None:
@@ -10,7 +12,7 @@ def write_sync_log(df: pd.DataFrame, path: str = "sync_log.csv") -> dict:
         
         df.to_csv(output_path, index=False)
 
-        return {"success": True, "error": None, "data": output_path}
+        return evaluate_response_status(output_path)
     
     except Exception as exc:
-        return {"success": False, "error": str(exc), "data": None}
+        return evaluate_response_status(None, str(exc))

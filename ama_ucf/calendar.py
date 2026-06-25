@@ -7,7 +7,7 @@ import datetime
 import os.path
 import hashlib
 
-from ama_ucf.utils import getSemester
+from ama_ucf.utils import evaluate_response_status, getSemester
 from ama_ucf.config import SCOPES_CALENDAR, TOKEN_FILE_PATH, \
   CREDENTIALS_CALENDAR_FILE_PATH, CALENDAR_TZ, CALENDAR_NAME, \
     EVENT_TYPE_MAP, CALENDAR_ID, AUTO_CREATE_CALENDAR
@@ -28,10 +28,10 @@ def create_calendar_service():
     creds = credentials_response["data"]
     service = build("calendar", "v3", credentials=creds)
     
-    return {"success": True, "error": None, "data": service}
+    return evaluate_response_status(service)
   
   except Exception as exc:
-    return {"success": False, "error": str(exc), "data": None}
+    return evaluate_response_status(None, str(exc))
   
 # get the calendar ID based on its name
 def calendar_id(service):
@@ -40,14 +40,14 @@ def calendar_id(service):
       raise ValueError("Calendar service is required.")
 
     if CALENDAR_ID is not None:
-      return {"success": True, "error": None, "data": CALENDAR_ID}
+      return evaluate_response_status(CALENDAR_ID)
   
     calendars_results = service.calendarList().list().execute()
     calendars = calendars_results.get("items", [])
   
     for calendar in calendars:
       if calendar.get("summary") == CALENDAR_NAME:
-        return {"success": True, "error": None, "data": calendar["id"]}
+        return evaluate_response_status(calendar["id"])
   
     if AUTO_CREATE_CALENDAR is True:
       return create_new_calendar(CALENDAR_NAME, service)
@@ -55,7 +55,7 @@ def calendar_id(service):
     raise ValueError(f"Calendar not found: {CALENDAR_NAME}")
   
   except Exception as exc:
-    return {"success": False, "error": str(exc), "data": None}
+    return evaluate_response_status(None, str(exc))
     
     
 # gets the necessary credentials that the user is going to use to validate its instance in program
@@ -96,10 +96,10 @@ def get_credentials(tokenFile: str, credentialFile: str):
       with open(tokenFile, "w") as token:
         token.write(creds.to_json())
               
-    return {"success": True, "error": None, "data": creds}
+    return evaluate_response_status(creds)
   
   except Exception as exc:
-    return {"success": False, "error": str(exc), "data": None}
+    return evaluate_response_status(None, str(exc))
 
 # creates secondary calendar
 def create_new_calendar(name: str, service) -> str:
@@ -114,10 +114,10 @@ def create_new_calendar(name: str, service) -> str:
       "timeZone": CALENDAR_TZ
     }
     created_calendar = service.calendars().insert(body=calendar_body).execute()
-    return {"success": True, "error": None, "data": created_calendar["id"]}
+    return evaluate_response_status(created_calendar["id"])
   
   except Exception as exc:
-    return {"success": False, "error": str(exc), "data": None}
+    return evaluate_response_status(None, str(exc))
 
 # gets events that are present in Google Calendar
 # is a variable output, change values to get in "maxResults="  
@@ -141,10 +141,10 @@ def get_events(service):
       .execute()
       )
     
-    return {"success": True, "error": None, "data": events_result.get("items", [])}
+    return evaluate_response_status(events_result.get("items", []))
   
   except Exception as exc:
-    return {"success": False, "error": str(exc), "data": None}
+    return evaluate_response_status(None, str(exc))
 
 # creates an event based on the list given in first parameter, gets the service 
 # (which is the gate-away to Google Calendar) and transition the values from the given list to Google Calendar
@@ -169,11 +169,7 @@ def create_event(gsEvent: dict, service, calendar_id: str):
 
     if exists_response["data"]:
       print(f"Skipping duplicate: {event_key}")
-      return {
-        "success": True,
-        "error": None,
-        "data": {"status": "skipped_duplicate", "event_key": event_key, "event": None},
-      }
+      return evaluate_response_status({"status": "skipped_duplicate", "event_key": event_key, "event": None})
     
     color_response = event_type(gsEvent["organizer"])
     if not color_response["success"]:
@@ -203,14 +199,10 @@ def create_event(gsEvent: dict, service, calendar_id: str):
     event = service.events().insert(calendarId=calendar_id, body=body).execute()
     print(f"event created {event.get('htmlLink')}")
     
-    return {
-      "success": True,
-      "error": None,
-      "data": {"status": "created", "event_key": event_key, "event": event},
-    }
+    return evaluate_response_status({"status": "created", "event_key": event_key, "event": event})
   
   except Exception as exc:
-    return {"success": False, "error": str(exc), "data": None}
+    return evaluate_response_status(None, str(exc))
 
 # helper to skip already existing events
 def event_already_exists(service, calendar_id: str, event_key):
@@ -223,19 +215,19 @@ def event_already_exists(service, calendar_id: str, event_key):
       raise ValueError("Event key is required.")
 
     results = service.events().list(calendarId=calendar_id, privateExtendedProperty=f"ama_row_key={event_key}").execute()
-    return {"success": True, "error": None, "data": len(results.get("items", [])) > 0}
+    return evaluate_response_status(len(results.get("items", [])) > 0)
   
   except Exception as exc:
-    return {"success": False, "error": str(exc), "data": None}
+    return evaluate_response_status(None, str(exc))
 
 # helper to get the color for specific event type
 def event_type(eventSummary):
   try:
     key = str(eventSummary).strip().title()
-    return {"success": True, "error": None, "data": EVENT_TYPE_MAP.get(key, 0)}
+    return evaluate_response_status(EVENT_TYPE_MAP.get(key, 0))
   
   except Exception as exc:
-    return {"success": False, "error": str(exc), "data": None}
+    return evaluate_response_status(None, str(exc))
 
 # build unique identifier to sync worksheet to calendar efficiently
 def build_event_key(gsEvent: dict, calendar_id: str):
@@ -254,7 +246,7 @@ def build_event_key(gsEvent: dict, calendar_id: str):
     ]) # "Fall '26|Disney Speaker_Workshop|2026-09-14T08:00:00|BA2|{AMA Calendar ID}"
     event_key = hashlib.sha256(parts.encode("utf-8")).hexdigest()
     
-    return {"success": True, "error": None, "data": event_key}
+    return evaluate_response_status(event_key)
   
   except Exception as exc:
-    return {"success": False, "error": str(exc), "data": None}
+    return evaluate_response_status(None, str(exc))
