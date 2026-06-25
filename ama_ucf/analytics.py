@@ -3,7 +3,7 @@ import pandas as pd
 from gspread_dataframe import set_with_dataframe
 
 from ama_ucf.sheets import get_spreadsheets
-from ama_ucf.utils import evaluate_response_status
+from ama_ucf.utils import evaluate_response_status, unwrap_response
 
 def analytics_tab(
     gc,
@@ -20,15 +20,24 @@ def analytics_tab(
         results = {}
 
         if include_event_density:
-            results["event_density"] = event_density(all_worksheets)
+            results["event_density"] = unwrap_response(
+                event_density(all_worksheets),
+                "calculate event density",
+            )
 
         if include_cross_segment_evaluation:
-            results["cross_segment_evaluation"] = cross_segment_evaluation(all_worksheets)
+            results["cross_segment_evaluation"] = unwrap_response(
+                cross_segment_evaluation(all_worksheets),
+                "calculate cross segment evaluation",
+            )
 
         if include_event_type_mix:
-            results["event_type_mix"] = event_type_mix(all_worksheets)
+            results["event_type_mix"] = unwrap_response(
+                event_type_mix(all_worksheets),
+                "calculate event type mix",
+            )
             
-        write_to_sheet(gc, results)
+        unwrap_response(write_to_sheet(gc, results), "write analytics to sheet")
         
         return evaluate_response_status(results)
 
@@ -37,72 +46,86 @@ def analytics_tab(
 
 # cross segment evaluation
 def cross_segment_evaluation(df : pd.DataFrame):
-    if df.empty:
-        raise ValueError("Dataframe is empty")
+    try:
+        if df.empty:
+            raise ValueError("Dataframe is empty")
 
-    df = df.copy()
-    df["event_date"] = pd.to_datetime(df["event_date"], errors="coerce")
-    df = df.dropna(subset=["semester", "Type", "event_date"])
+        df = df.copy()
+        df["event_date"] = pd.to_datetime(df["event_date"], errors="coerce")
+        df = df.dropna(subset=["semester", "Type", "event_date"])
 
-    if df.empty:
-        raise ValueError("Dataframe has no valid segment rows.")
+        if df.empty:
+            raise ValueError("Dataframe has no valid segment rows.")
 
-    segment_summary = (
-        df.groupby(["semester", "Type"])
-        .agg(
-            event_count=("Event", "count"), 
-            first_event_date=("event_date", "min"), 
-            last_event_date=("event_date", "max"),
-            )
-        .reset_index()
-    )
-    sorted_df = df.sort_values(["semester", "Type", "event_date"])
-    sorted_df["days_since_previous_event"] = (sorted_df.groupby(["semester", "Type"])["event_date"].diff().dt.days)
-    gap_summary = (sorted_df.groupby(["semester", "Type"])["days_since_previous_event"].max().reset_index(name="largest_gap_days"))
+        segment_summary = (
+            df.groupby(["semester", "Type"])
+            .agg(
+                event_count=("Event", "count"), 
+                first_event_date=("event_date", "min"), 
+                last_event_date=("event_date", "max"),
+                )
+            .reset_index()
+        )
+        sorted_df = df.sort_values(["semester", "Type", "event_date"])
+        sorted_df["days_since_previous_event"] = (sorted_df.groupby(["semester", "Type"])["event_date"].diff().dt.days)
+        gap_summary = (sorted_df.groupby(["semester", "Type"])["days_since_previous_event"].max().reset_index(name="largest_gap_days"))
 
-    return segment_summary.merge(gap_summary, on=["semester", "Type"], how="left")
+        result = segment_summary.merge(gap_summary, on=["semester", "Type"], how="left")
+        return evaluate_response_status(result)
+    
+    except Exception as exc:
+        return evaluate_response_status(None, str(exc))
 
 # event density
 def event_density(df : pd.DataFrame):
-    if df.empty:
-        raise ValueError("Dataframe is empty")
+    try:
+        if df.empty:
+            raise ValueError("Dataframe is empty")
 
-    df = df.copy()
-    df["event_date"] = pd.to_datetime(df["event_date"], errors="coerce")
-    df = df.dropna(subset=["event_date"])
+        df = df.copy()
+        df["event_date"] = pd.to_datetime(df["event_date"], errors="coerce")
+        df = df.dropna(subset=["event_date"])
 
-    if df.empty:
-        raise ValueError("Dataframe has no valid event dates.")
+        if df.empty:
+            raise ValueError("Dataframe has no valid event dates.")
 
-    weekly_count = df.set_index("event_date").resample("W").size().reset_index(name="event_count")
+        weekly_count = df.set_index("event_date").resample("W").size().reset_index(name="event_count")
+        
+        return evaluate_response_status(weekly_count)
     
-    return weekly_count
+    except Exception as exc:
+        return evaluate_response_status(None, str(exc))
 
 # event type mix
 def event_type_mix(df: pd.DataFrame):
-    if df.empty:
-        raise ValueError("Dataframe is empty")
+    try:
+        if df.empty:
+            raise ValueError("Dataframe is empty")
 
-    event_types, counts = np.unique(df["Type"].dropna().to_numpy(), return_counts=True)
+        event_types, counts = np.unique(df["Type"].dropna().to_numpy(), return_counts=True)
 
-    if counts.size == 0:
-        raise ValueError("Dataframe has no valid event types.")
+        if counts.size == 0:
+            raise ValueError("Dataframe has no valid event types.")
 
-    order = np.argsort(counts)[::-1]
-    event_types = event_types[order]
-    counts = counts[order]
+        order = np.argsort(counts)[::-1]
+        event_types = event_types[order]
+        counts = counts[order]
+        
+        shares = counts / counts.sum()
+        cumulative_shares = np.cumsum(shares)
+
+        event_mix_df = pd.DataFrame(
+            {
+            "Type": event_types,
+            "event_count": counts,
+            "share_of_events": shares,
+            "cumulative_share": cumulative_shares,
+            }
+        )
+        return evaluate_response_status(event_mix_df)
     
-    shares = counts / counts.sum()
-    cumulative_shares = np.cumsum(shares)
-
-    return pd.DataFrame(
-        {
-        "Type": event_types,
-        "event_count": counts,
-        "share_of_events": shares,
-        "cumulative_share": cumulative_shares
-        }
-    )
+    except Exception as exc:
+        return evaluate_response_status(None, str(exc))
          
 def write_to_sheet(gc, results):
     if results is None:
@@ -130,12 +153,27 @@ def write_to_sheet(gc, results):
     write_to = [(int(cell_title.row) +1), (int(cell_title.column) +1)]
 
     if "event_density" in results:
-        set_with_dataframe(ws, results["event_density"], row=write_to[0], col=write_to[1])
+        event_density_df = (
+            unwrap_response(results["event_density"], "read event density")
+            if isinstance(results["event_density"], dict)
+            else results["event_density"]
+        )
+        set_with_dataframe(ws, event_density_df, row=write_to[0], col=write_to[1])
 
     if "cross_segment_evaluation" in results:
-        set_with_dataframe(ws, results["cross_segment_evaluation"], row=write_to[0], col=write_to[1] + 4)
+        cross_segment_df = (
+            unwrap_response(results["cross_segment_evaluation"], "read cross segment evaluation")
+            if isinstance(results["cross_segment_evaluation"], dict)
+            else results["cross_segment_evaluation"]
+        )
+        set_with_dataframe(ws, cross_segment_df, row=write_to[0], col=write_to[1] + 4)
 
     if "event_type_mix" in results:
-        set_with_dataframe(ws, results["event_type_mix"], row=write_to[0], col=write_to[1] + 10)
+        event_type_mix_df = (
+            unwrap_response(results["event_type_mix"], "read event type mix")
+            if isinstance(results["event_type_mix"], dict)
+            else results["event_type_mix"]
+        )
+        set_with_dataframe(ws, event_type_mix_df, row=write_to[0], col=write_to[1] + 10)
 
     return evaluate_response_status("analytics written")
