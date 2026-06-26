@@ -128,52 +128,56 @@ def event_type_mix(df: pd.DataFrame):
         return evaluate_response_status(None, str(exc))
          
 def write_to_sheet(gc, results):
-    if results is None:
-        return evaluate_response_status("nothing to write home about!")
-    
-    client = gc["data"]
-    sh_response = get_spreadsheets(client)
-
-    if not sh_response["success"]:
-        raise ValueError(sh_response["error"])
-
-    sh = sh_response["data"]
-    
-    ws = sh[0].worksheet("Analytics")
-    if ws is None:
-        ws = gc.create("Analytics")
-
     try:
-        cell_title = ws.find("Insightful Analytics")
+        if results is None:
+            return evaluate_response_status("nothing to write home about!")
+        
+        client = gc["data"] if isinstance(gc, dict) else gc
+        sh_response = get_spreadsheets(client)
+
+        if not sh_response["success"]:
+            raise ValueError(sh_response["error"])
+
+        sh = sh_response["data"]
+        
+        ws = sh[0].worksheet("Analytics")
+        if ws is None:
+            ws = client.create("Analytics")
+
+        try:
+            cell_title = ws.find("Insightful Analytics")
+        
+        except Exception:
+            ws.update_cell(10, 12, "Insightful Analytics")
+            cell_title = ws.find("Insightful Analytics")
+        
+        write_to = [(int(cell_title.row) +1), (int(cell_title.column) +1)]
+
+        if "event_density" in results:
+            event_density_df = (
+                unwrap_response(results["event_density"], "read event density")
+                if isinstance(results["event_density"], dict)
+                else results["event_density"]
+            )
+            set_with_dataframe(ws, event_density_df, row=write_to[0], col=write_to[1])
+
+        if "cross_segment_evaluation" in results:
+            cross_segment_df = (
+                unwrap_response(results["cross_segment_evaluation"], "read cross segment evaluation")
+                if isinstance(results["cross_segment_evaluation"], dict)
+                else results["cross_segment_evaluation"]
+            )
+            set_with_dataframe(ws, cross_segment_df, row=write_to[0], col=write_to[1] + 4)
+
+        if "event_type_mix" in results:
+            event_type_mix_df = (
+                unwrap_response(results["event_type_mix"], "read event type mix")
+                if isinstance(results["event_type_mix"], dict)
+                else results["event_type_mix"]
+            )
+            set_with_dataframe(ws, event_type_mix_df, row=write_to[0], col=write_to[1] + 10)
+
+        return evaluate_response_status("analytics written")
     
-    except Exception:
-        ws.update_cell(10, 12, "Insightful Analytics")
-        cell_title = ws.find("Insightful Analytics")
-    
-    write_to = [(int(cell_title.row) +1), (int(cell_title.column) +1)]
-
-    if "event_density" in results:
-        event_density_df = (
-            unwrap_response(results["event_density"], "read event density")
-            if isinstance(results["event_density"], dict)
-            else results["event_density"]
-        )
-        set_with_dataframe(ws, event_density_df, row=write_to[0], col=write_to[1])
-
-    if "cross_segment_evaluation" in results:
-        cross_segment_df = (
-            unwrap_response(results["cross_segment_evaluation"], "read cross segment evaluation")
-            if isinstance(results["cross_segment_evaluation"], dict)
-            else results["cross_segment_evaluation"]
-        )
-        set_with_dataframe(ws, cross_segment_df, row=write_to[0], col=write_to[1] + 4)
-
-    if "event_type_mix" in results:
-        event_type_mix_df = (
-            unwrap_response(results["event_type_mix"], "read event type mix")
-            if isinstance(results["event_type_mix"], dict)
-            else results["event_type_mix"]
-        )
-        set_with_dataframe(ws, event_type_mix_df, row=write_to[0], col=write_to[1] + 10)
-
-    return evaluate_response_status("analytics written")
+    except Exception as exc:
+        return evaluate_response_status(None, str(exc))

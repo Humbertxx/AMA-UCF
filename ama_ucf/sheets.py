@@ -6,7 +6,11 @@ from gspread import Client, Worksheet, Spreadsheet
 from gspread_dataframe import get_as_dataframe 
 import pandas as pd
 
-from ama_ucf.utils import evaluate_response_status, fractionToTime, getSemester
+from ama_ucf.utils import (
+    evaluate_response_status, 
+    fractionToTime, 
+    getSemester,
+    ) 
 from ama_ucf.config import SPREADSHEET_ID, CREDENTIALS_WORKSHEET_FILE_PATH, ARCHIVE_ID
 
 # validation of credentials
@@ -31,9 +35,10 @@ def get_credentials() -> dict:
 
 # get spreadsheets from archive and the calendar event master list
 def get_spreadsheets(gc: Client) -> dict: 
-    if not gc:
-        raise ValueError("need client to continue")
     try:
+        if not gc:
+            raise ValueError("need client to continue")
+
         worksheet_id = SPREADSHEET_ID
         archive_id   = ARCHIVE_ID
     
@@ -81,23 +86,33 @@ def worksheet_to_dataframe(ws: Worksheet) -> dict:
         return evaluate_response_status(None, str(exc))
     
 # get all worksheet to compare and analyze the difference worksheets
-def get_all_worksheets(spreadsheets: list[Spreadsheet]) -> pd.DataFrame:
-    all_dfs: list[pd.DataFrame] = []
-    for sh in spreadsheets:
-        for ws in sh.worksheets():
-            if ws.title == "Analytics":
-                continue
-            try:
-                df_response = worksheet_to_dataframe(ws)
-                if not df_response["success"] or df_response["data"] is None:
+def get_all_worksheets(spreadsheets: list[Spreadsheet]) -> dict:
+    try:
+        if not spreadsheets:
+            raise ValueError("spreadsheets are required.")
+
+        all_dfs: list[pd.DataFrame] = []
+        for sh in spreadsheets:
+            for ws in sh.worksheets():
+                if ws.title == "Analytics":
+                    continue
+                try:
+                    df_response = worksheet_to_dataframe(ws)
+                    if not df_response["success"] or df_response["data"] is None:
+                        continue
+
+                    all_dfs.append(df_response["data"])
+                
+                except Exception:
                     continue
 
-                all_dfs.append(df_response["data"])
-            
-            except Exception:
-                continue
-            
-    return pd.concat(all_dfs, ignore_index=True)
+        if not all_dfs:
+            raise ValueError("No worksheet data found.")
+                
+        return evaluate_response_status(pd.concat(all_dfs, ignore_index=True))
+    
+    except Exception as exc:
+        return evaluate_response_status(None, str(exc))
     
 # normalize rows, drop empty rows that do not hold dates nor events, convert to dataframe
 def normalize_rows(df_combine: pd.DataFrame) -> dict:
@@ -115,17 +130,22 @@ def normalize_rows(df_combine: pd.DataFrame) -> dict:
         return evaluate_response_status(None, str(exc))
 
 # this function get relevant dates that are numeric in FORMULA FORM, then its continues to construct API payload 
-def normalize_calendar(df_dict: dict) -> dict:
+def normalize_calendar(df: pd.DataFrame) -> dict:
     try:
-        if not df_dict:
+        if df is None:
             raise ValueError("Rows are required.")
-        if df_dict["data"] is None:
-            raise ValueError("Rows are required.")
-        
-        df = df_dict["data"].copy()
+
+        df = df.copy()
         
         df = df[df["event_date"] >= datetime.today().date()]
-        df["time"] = df["time"].apply(lambda x: fractionToTime(x).get("data"))
+
+        def parse_time(value):
+            time_response = fractionToTime(value)
+            if not time_response["success"]:
+                raise ValueError(time_response["error"])
+            return time_response["data"]
+
+        df["time"] = df["time"].apply(parse_time)
         
         combined_text = df["event_date"].astype(str) + " " + df["time"].astype(str)
         df["calendar_time"] = pd.to_datetime(combined_text, errors='coerce')

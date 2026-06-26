@@ -7,7 +7,10 @@ import datetime
 import os.path
 import hashlib
 
-from ama_ucf.utils import evaluate_response_status, getSemester
+from ama_ucf.utils import (
+  evaluate_response_status, 
+  getSemester )
+
 from ama_ucf.config import SCOPES_CALENDAR, TOKEN_FILE_PATH, \
   CREDENTIALS_CALENDAR_FILE_PATH, CALENDAR_TZ, CALENDAR_NAME, \
     EVENT_TYPE_MAP, CALENDAR_ID, AUTO_CREATE_CALENDAR
