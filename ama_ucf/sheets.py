@@ -126,7 +126,11 @@ def normalize_calendar(df: pd.DataFrame) -> dict:
             raise ValueError("Rows are required.")
 
         df = df[df["event_date"] >= datetime.today().date()].copy()
-        df["time"] = df["time"].apply(lambda x: unwrap_response(fractionToTime(x), "get standard date format"))
+        
+        def parse_time(value):
+            return unwrap_response(fractionToTime(value),"get standard date format")
+
+        df["time"] = df["time"].apply(parse_time)
         combined_text = df["event_date"].astype(str) + " " + df["time"].astype(str)
         df["calendar_time"] = pd.to_datetime(combined_text, errors='coerce')
         
