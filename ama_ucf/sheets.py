@@ -6,11 +6,7 @@ from gspread import Client, Worksheet, Spreadsheet
 from gspread_dataframe import get_as_dataframe 
 import pandas as pd
 
-from ama_ucf.utils import (
-    evaluate_response_status, 
-    fractionToTime, 
-    getSemester,
-    ) 
+from ama_ucf.utils import evaluate_response_status, fractionToTime, getSemester, unwrap_response
 from ama_ucf.config import SPREADSHEET_ID, CREDENTIALS_WORKSHEET_FILE_PATH, ARCHIVE_ID
 
 # validation of credentials
@@ -57,14 +53,9 @@ def get_spreadsheets(gc: Client) -> dict:
 # get the worksheet intended to be use for only the calendar 
 def calendar_spreadsheet(sh: list[Spreadsheet], semester=None) -> dict: 
     try: 
-        semester_response = getSemester() if semester is None else evaluate_response_status(semester)
-        
-        if not semester_response["success"]:
-            raise ValueError(semester_response["error"])
-        if semester_response["data"] is None:
-            raise ValueError("semester is required.")
-
-        worksheet = sh[0].worksheet(str(semester_response["data"]))
+        semester_response = evaluate_response_status(semester) if semester else getSemester()
+        semester_response = unwrap_response(semester_response, "get semester input")
+        worksheet = sh[0].worksheet(str(semester_response))
     
         return evaluate_response_status(worksheet)
     
@@ -120,8 +111,7 @@ def normalize_rows(df_combine: pd.DataFrame) -> dict:
         if df_combine is None:
             raise ValueError("dataframe is required.")
 
-        df = df_combine.copy()
-        df = df.dropna(subset=["Date", "Event"])
+        df = df_combine.dropna(subset=["Date", "Event"]).copy()
         df["event_date"] = (pd.to_datetime("1899-12-30") + pd.to_timedelta(df["Date"], unit="D")).dt.date
         
         return evaluate_response_status(df)
@@ -135,23 +125,13 @@ def normalize_calendar(df: pd.DataFrame) -> dict:
         if df is None:
             raise ValueError("Rows are required.")
 
-        df = df.copy()
-        
-        df = df[df["event_date"] >= datetime.today().date()]
-
-        def parse_time(value):
-            time_response = fractionToTime(value)
-            if not time_response["success"]:
-                raise ValueError(time_response["error"])
-            return time_response["data"]
-
-        df["time"] = df["time"].apply(parse_time)
-        
+        df = df[df["event_date"] >= datetime.today().date()].copy()
+        df["time"] = df["time"].apply(lambda x: unwrap_response(fractionToTime(x), "get standard date format"))
         combined_text = df["event_date"].astype(str) + " " + df["time"].astype(str)
         df["calendar_time"] = pd.to_datetime(combined_text, errors='coerce')
         
-        events: list[dict] = []
         rows = df.to_dict("records")
+        events = [] 
         
         for row in rows:
             if row["time"] is not None:

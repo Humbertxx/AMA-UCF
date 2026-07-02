@@ -37,19 +37,21 @@ def fractionToTime(fraction: float) -> dict:
     except Exception as exc:
         return evaluate_response_status(None, str(exc))
 
+# manual parsing of events
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--semester")
     return parser.parse_args()
 
-
+# standard way to return function in dictionaries
 def evaluate_response_status(data, error: str | None = None):
     if error:
         return {"success": False, "error": error, "data": None}
 
     return {"success": True, "error": None, "data": data}
 
-def unwrap_response(response, action: str):
+# unwrap responses, return only data that contains the dict if success
+def unwrap_response(response: dict, action: str):
     if not isinstance(response, dict):
         raise RuntimeError(f"Could not {action}: expected response dictionary, got {type(response).__name__}")
 

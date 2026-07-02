@@ -7,9 +7,7 @@ import datetime
 import os.path
 import hashlib
 
-from ama_ucf.utils import (
-  evaluate_response_status, 
-  getSemester )
+from ama_ucf.utils import evaluate_response_status, getSemester, unwrap_response
 
 from ama_ucf.config import SCOPES_CALENDAR, TOKEN_FILE_PATH, \
   CREDENTIALS_CALENDAR_FILE_PATH, CALENDAR_TZ, CALENDAR_NAME, \
@@ -160,23 +158,14 @@ def create_event(gsEvent: dict, service, calendar_id: str):
     if not calendar_id:
       raise ValueError("Calendar ID is required.")
 
-    event_key_response = build_event_key(gsEvent, calendar_id)
-    if not event_key_response["success"]:
-      return event_key_response
-
-    event_key = event_key_response["data"]
+    event_key = unwrap_response(build_event_key(gsEvent, calendar_id), "build hash id")
+    exists_response = unwrap_response(event_already_exists(service, calendar_id, event_key), "evaluate if id exists")
     
-    exists_response = event_already_exists(service, calendar_id, event_key)
-    if not exists_response["success"]:
-      return exists_response
-
-    if exists_response["data"]:
+    if exists_response:
       print(f"Skipping duplicate: {event_key}")
       return evaluate_response_status({"status": "skipped_duplicate", "event_key": event_key, "event": None})
     
-    color_response = event_type(gsEvent["organizer"])
-    if not color_response["success"]:
-      return color_response
+    color_response = unwrap_response(event_type(gsEvent["organizer"]), "get color for event type")
 
     start_dt = dict(gsEvent["start"])
     end_dt = dict(gsEvent["end"])
@@ -190,7 +179,7 @@ def create_event(gsEvent: dict, service, calendar_id: str):
       "summary" : gsEvent["summary"],
       "location" : gsEvent["location"],
       "description" : gsEvent["description"],
-      "colorId" : color_response["data"],
+      "colorId" : color_response,
       "start" : start_dt,
       "end" : end_dt,
       "extendedProperties": {
@@ -235,18 +224,16 @@ def event_type(eventSummary):
 # build unique identifier to sync worksheet to calendar efficiently
 def build_event_key(gsEvent: dict, calendar_id: str):
   try:
-    semester_response = getSemester()
-    if not semester_response["success"]:
-      return semester_response
+    semester_response = unwrap_response(getSemester(), "get semester to get")
 
     parts = "|".join([
-      semester_response["data"],
+      semester_response,
       gsEvent.get("summary", ""),
       gsEvent.get("organizer", ""),
       str(gsEvent.get("start", "")),
       gsEvent.get("location", ""),
       calendar_id,
-    ]) # "Fall '26|Disney Speaker_Workshop|2026-09-14T08:00:00|BA2|{AMA Calendar ID}"
+    ]) # i.e. "Fall '26|Disney Speaker_Workshop|2026-09-14T08:00:00|BA2|{AMA Calendar ID}"
     event_key = hashlib.sha256(parts.encode("utf-8")).hexdigest()
     
     return evaluate_response_status(event_key)

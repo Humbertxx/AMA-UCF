@@ -2,11 +2,11 @@ import numpy as np
 import pandas as pd
 from gspread_dataframe import set_with_dataframe
 
-from ama_ucf.sheets import get_spreadsheets
 from ama_ucf.utils import evaluate_response_status, unwrap_response
 
 def analytics_tab(
     gc,
+    sh,
     all_worksheets: pd.DataFrame | None = None,
     include_cross_segment_evaluation: bool = True,
     include_event_density: bool = True,
@@ -24,22 +24,20 @@ def analytics_tab(
                 event_density(all_worksheets),
                 "calculate event density",
             )
-
         if include_cross_segment_evaluation:
             results["cross_segment_evaluation"] = unwrap_response(
                 cross_segment_evaluation(all_worksheets),
                 "calculate cross segment evaluation",
             )
-
         if include_event_type_mix:
             results["event_type_mix"] = unwrap_response(
                 event_type_mix(all_worksheets),
                 "calculate event type mix",
             )
             
-        unwrap_response(write_to_sheet(gc, results), "write analytics to sheet")
+        success = unwrap_response(write_to_sheet(gc, sh, results), "write analytics to sheet")
         
-        return evaluate_response_status(results)
+        return evaluate_response_status(success)
 
     except Exception as exc:
         return evaluate_response_status(None, str(exc))
@@ -127,20 +125,13 @@ def event_type_mix(df: pd.DataFrame):
     except Exception as exc:
         return evaluate_response_status(None, str(exc))
          
-def write_to_sheet(gc, results):
+def write_to_sheet(client, sh,results):
     try:
         if results is None:
             return evaluate_response_status("nothing to write home about!")
         
-        client = gc["data"] if isinstance(gc, dict) else gc
-        sh_response = get_spreadsheets(client)
-
-        if not sh_response["success"]:
-            raise ValueError(sh_response["error"])
-
-        sh = sh_response["data"]
-        
         ws = sh[0].worksheet("Analytics")
+        
         if ws is None:
             ws = client.create("Analytics")
 
@@ -154,27 +145,18 @@ def write_to_sheet(gc, results):
         write_to = [(int(cell_title.row) +1), (int(cell_title.column) +1)]
 
         if "event_density" in results:
-            event_density_df = (
-                unwrap_response(results["event_density"], "read event density")
-                if isinstance(results["event_density"], dict)
-                else results["event_density"]
-            )
+            event_density_df = results["event_density"]
+
             set_with_dataframe(ws, event_density_df, row=write_to[0], col=write_to[1])
 
         if "cross_segment_evaluation" in results:
-            cross_segment_df = (
-                unwrap_response(results["cross_segment_evaluation"], "read cross segment evaluation")
-                if isinstance(results["cross_segment_evaluation"], dict)
-                else results["cross_segment_evaluation"]
-            )
+            cross_segment_df = results["cross_segment_evaluation"]
+          
             set_with_dataframe(ws, cross_segment_df, row=write_to[0], col=write_to[1] + 4)
 
         if "event_type_mix" in results:
-            event_type_mix_df = (
-                unwrap_response(results["event_type_mix"], "read event type mix")
-                if isinstance(results["event_type_mix"], dict)
-                else results["event_type_mix"]
-            )
+            event_type_mix_df = results["event_type_mix"]
+
             set_with_dataframe(ws, event_type_mix_df, row=write_to[0], col=write_to[1] + 10)
 
         return evaluate_response_status("analytics written")
