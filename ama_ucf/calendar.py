@@ -22,7 +22,7 @@ def create_calendar_service():
     if not api_key_path or not os.path.exists(api_key_path):
       raise FileNotFoundError("Google Calendar credential path is not configured or file is missing.")
 
-    credentials_response = get_credentials(str(token_path), str(api_key_path))
+    credentials_response = get_credentials(token_path, api_key_path)
     if not credentials_response["success"]:
       return credentials_response
 
@@ -40,7 +40,7 @@ def calendar_id(service):
     if not service:
       raise ValueError("Calendar service is required.")
 
-    if CALENDAR_ID is not None:
+    if CALENDAR_ID is not None or CALENDAR_ID is not "":
       return evaluate_response_status(CALENDAR_ID)
   
     calendars_results = service.calendarList().list().execute()
@@ -149,7 +149,7 @@ def get_events(service):
 
 # creates an event based on the list given in first parameter, gets the service 
 # (which is the gate-away to Google Calendar) and transition the values from the given list to Google Calendar
-def create_event(gsEvent: dict, service, calendar_id: str):
+def create_event(gsEvent: dict, service, calendar_id: str, semester:str):
   try:
     if not gsEvent:
       raise ValueError("Google Sheets event is required.")
@@ -158,7 +158,7 @@ def create_event(gsEvent: dict, service, calendar_id: str):
     if not calendar_id:
       raise ValueError("Calendar ID is required.")
 
-    event_key = unwrap_response(build_event_key(gsEvent, calendar_id), "build hash id")
+    event_key = unwrap_response(build_event_key(gsEvent, calendar_id, semester), "build hash id")
     exists_response = unwrap_response(event_already_exists(service, calendar_id, event_key), "evaluate if id exists")
     
     if exists_response:
@@ -222,9 +222,10 @@ def event_type(eventSummary):
     return evaluate_response_status(None, str(exc))
 
 # build unique identifier to sync worksheet to calendar efficiently
-def build_event_key(gsEvent: dict, calendar_id: str):
+def build_event_key(gsEvent: dict, calendar_id: str, semester):
   try:
-    semester_response = unwrap_response(getSemester(), "get semester to get")
+    semester_response = evaluate_response_status(semester) if semester else getSemester()
+    semester_response = unwrap_response(semester_response, "get semester input")
 
     parts = "|".join([
       semester_response,

@@ -1,11 +1,12 @@
 import numpy as np
 import pandas as pd
+
+from gspread.exceptions import WorksheetNotFound
 from gspread_dataframe import set_with_dataframe
 
 from ama_ucf.utils import evaluate_response_status, unwrap_response
 
 def analytics_tab(
-    gc,
     sh,
     all_worksheets: pd.DataFrame | None = None,
     include_cross_segment_evaluation: bool = True,
@@ -35,7 +36,7 @@ def analytics_tab(
                 "calculate event type mix",
             )
             
-        success = unwrap_response(write_to_sheet(gc, sh, results), "write analytics to sheet")
+        success = unwrap_response(write_to_sheet(sh, results), "write analytics to sheet")
         
         return evaluate_response_status(success)
 
@@ -125,15 +126,17 @@ def event_type_mix(df: pd.DataFrame):
     except Exception as exc:
         return evaluate_response_status(None, str(exc))
          
-def write_to_sheet(client, sh,results):
+def write_to_sheet(sh,results):
     try:
         if results is None:
             return evaluate_response_status("nothing to write home about!")
         
-        ws = sh[0].worksheet("Analytics")
+        spreadsheet = sh[0]
         
-        if ws is None:
-            ws = client.create("Analytics")
+        try:
+            ws = spreadsheet.worksheet("Analytics")
+        except WorksheetNotFound:
+            ws = spreadsheet.add_worksheet(title="Analytics", rows=100, cols=20)
 
         try:
             cell_title = ws.find("Insightful Analytics")

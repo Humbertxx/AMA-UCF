@@ -9,7 +9,6 @@ def write_sync_log(df: pd.DataFrame, path: str = "sync_log.csv") -> dict:
             raise ValueError("dataframe is required.")
 
         output_path = Path(path)
-        
         df.to_csv(output_path, index=False)
 
         return evaluate_response_status(output_path)

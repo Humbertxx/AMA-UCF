@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import gspread
 from gspread import Client, Worksheet, Spreadsheet
@@ -127,7 +127,7 @@ def normalize_calendar(df: pd.DataFrame) -> dict:
 
         df = df[df["event_date"] >= datetime.today().date()].copy()
         
-        def parse_time(value):
+        def parse_time(value): # TO DO: Returns Error when None should be succesful, need fix
             return unwrap_response(fractionToTime(value),"get standard date format")
 
         df["time"] = df["time"].apply(parse_time)
@@ -139,13 +139,15 @@ def normalize_calendar(df: pd.DataFrame) -> dict:
         
         for row in rows:
             if row["time"] is not None:
-                start_dt = row["calendar_time"]
+                start_dt = pd.Timestamp(row["calendar_time"])
                 end_dt = start_dt + pd.Timedelta(hours=1)
                 start_field = {"dateTime": start_dt.isoformat()}
                 end_field = {"dateTime": end_dt.isoformat()}
             else:
-                start_field = {"date": row["event_date"].isoformat()}
-                end_field = {"date": row["event_date"].isoformat()}
+                start_date = pd.Timestamp(row["event_date"]).date()
+                end_date = start_date + timedelta(days=1)
+                start_field = {"date": start_date.isoformat()}
+                end_field = {"date": end_date.isoformat()}
 
             events.append({
                 "summary": row.get("Event", ""),
