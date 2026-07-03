@@ -1,20 +1,34 @@
-name: "sync ama-ucf Google Sheets to Google Calendar"
+name: "Sync AMA UCF Google Sheets to Google Calendar"
 
 on:
   schedule:
-    - cron: '0 0 * * 1' # Every Monday at midnight
-  workflow_dispatch: # Allow manual trigger from GitHub UI
+    - cron: "0 0 * * 1" # Every Monday at 00:00 UTC
+  workflow_dispatch:
+    inputs:
+      semester:
+        description: "Optional worksheet tab name, for example Fall '26. Leave blank to use the current semester."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     env:
       SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+      ARCHIVE_SPREADSHEET_ID: ${{ secrets.ARCHIVE_SPREADSHEET_ID }}
       CALENDAR_ID: ${{ secrets.CALENDAR_ID }}
-      CALENDAR_NAME: ${{ vars.CALENDAR_NAME }}
-      CALENDAR_TIMEZONE: ${{ vars.CALENDAR_TIMEZONE }}
-      POLL_INTERVAL_SECONDS: ${{ vars.POLL_INTERVAL_SECONDS }}
+      CALENDAR_NAME: ${{ vars.CALENDAR_NAME || 'AMA Calendar' }}
+      CALENDAR_TIMEZONE: ${{ vars.CALENDAR_TIMEZONE || 'America/New_York' }}
+      POLL_INTERVAL_SECONDS: ${{ vars.POLL_INTERVAL_SECONDS || '300' }}
 
       CREDENTIALS_WORKSHEET_FILE_PATH: private/google-sheets-key.json
       CREDENTIALS_CALENDAR_FILE_PATH: private/google-calendar-key.json
@@ -24,21 +38,97 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Validate workflow configuration
+        shell: bash
+        env:
+          GOOGLE_SHEETS_CREDENTIALS_JSON: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS_JSON }}
+          GOOGLE_CALENDAR_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CALENDAR_CREDENTIALS_JSON }}
+          GOOGLE_CALENDAR_TOKEN_JSON: ${{ secrets.GOOGLE_CALENDAR_TOKEN_JSON }}
+        run: |
+          set -euo pipefail
+
+          missing=()
+          for name in \
+            SPREADSHEET_ID \
+            ARCHIVE_SPREADSHEET_ID \
+            CALENDAR_TIMEZONE \
+            POLL_INTERVAL_SECONDS \
+            CREDENTIALS_WORKSHEET_FILE_PATH \
+            CREDENTIALS_CALENDAR_FILE_PATH \
+            TOKEN_FILE_PATH \
+            GOOGLE_SHEETS_CREDENTIALS_JSON \
+            GOOGLE_CALENDAR_CREDENTIALS_JSON \
+            GOOGLE_CALENDAR_TOKEN_JSON
+          do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [ -z "${CALENDAR_ID:-}" ] && [ -z "${CALENDAR_NAME:-}" ]; then
+            missing+=("CALENDAR_ID or CALENDAR_NAME")
+          fi
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required workflow configuration:\n'
+            printf ' - %s\n' "${missing[@]}"
+            exit 1
+          fi
+
+          if ! [[ "$POLL_INTERVAL_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+            printf 'POLL_INTERVAL_SECONDS must be a positive integer, got: %s\n' "$POLL_INTERVAL_SECONDS"
+            exit 1
+          fi
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.12
 
-      - name: Install dependencies
-        run: uv sync
+      - name: Install locked dependencies
+        run: uv sync --locked
 
       - name: Create private credential files
+        shell: bash
+        env:
+          GOOGLE_SHEETS_CREDENTIALS_JSON: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS_JSON }}
+          GOOGLE_CALENDAR_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CALENDAR_CREDENTIALS_JSON }}
+          GOOGLE_CALENDAR_TOKEN_JSON: ${{ secrets.GOOGLE_CALENDAR_TOKEN_JSON }}
         run: |
-          mkdir -p private
-          echo '${{ secrets.GOOGLE_SHEETS_CREDENTIALS_JSON }}' > private/google-sheets-key.json
-          echo '${{ secrets.GOOGLE_CALENDAR_CREDENTIALS_JSON }}' > private/google-calendar-key.json
-          echo '${{ secrets.GOOGLE_CALENDAR_TOKEN_JSON }}' > private/token.json
+          set -euo pipefail
+
+          install -d -m 700 private
+          umask 077
+
+          printf '%s' "$GOOGLE_SHEETS_CREDENTIALS_JSON" > "$CREDENTIALS_WORKSHEET_FILE_PATH"
+          printf '%s' "$GOOGLE_CALENDAR_CREDENTIALS_JSON" > "$CREDENTIALS_CALENDAR_FILE_PATH"
+          printf '%s' "$GOOGLE_CALENDAR_TOKEN_JSON" > "$TOKEN_FILE_PATH"
+
+          python -m json.tool "$CREDENTIALS_WORKSHEET_FILE_PATH" >/dev/null
+          python -m json.tool "$CREDENTIALS_CALENDAR_FILE_PATH" >/dev/null
+          python -m json.tool "$TOKEN_FILE_PATH" >/dev/null
 
       - name: Run sync
-        run: uv run python main.py 
+        shell: bash
+        env:
+          SEMESTER: ${{ github.event.inputs.semester || '' }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${SEMESTER:-}" ]; then
+            uv run python main.py --semester "$SEMESTER"
+          else
+            uv run python main.py
+          fi
+
+      - name: Upload sync log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-log
+          path: sync_log.csv
+          if-no-files-found: warn
+          retention-days: 14

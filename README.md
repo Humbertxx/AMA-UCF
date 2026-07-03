@@ -396,8 +396,8 @@ That separation makes the workflow easier to test, easier to explain, and easier
 - NumPy-backed analytics functions: done.
 - `--semester` argument for reusable semester runs: done.
 - Analytics worksheet writer: done.
-- Pytest coverage for normalization: started.
-- GitHub Actions production workflow: started.
+- Pytest coverage for normalization: done.
+- GitHub Actions production workflow: progress.
 
 Created by Humberto Bohorquez. Built with Python, Pandas, NumPy, Google APIs, and GitHub Actions.
 

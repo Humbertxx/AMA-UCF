@@ -35,4 +35,4 @@ def get_events(service) -> dict:
     return evaluate_response_status(None, str(exc))
 
 if __name__ == "__main__":
-    main()
+  main()
