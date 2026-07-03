@@ -386,10 +386,6 @@ That separation makes the workflow easier to test, easier to explain, and easier
 ## Current Follow-Ups
 
 - Export analytics from `src.analytics` through the main runtime consistently.
-- Add tests for `cross_segment_evaluation()` and `event_type_mix()`.
-- Add tests for duplicate event-key generation.
-- Add a GitHub Actions workflow for scheduled and manual runs.
-- Optionally store audit history in SQLite or a warehouse-backed database for a larger data engineering version.
 
 ## Roadmap Status
 
@@ -398,10 +394,10 @@ That separation makes the workflow easier to test, easier to explain, and easier
 - Duplicate prevention with hashed event keys: done.
 - CSV audit logging: done.
 - NumPy-backed analytics functions: done.
-- Analytics worksheet writer: in progress.
-- Pytest coverage for normalization: started.
 - `--semester` argument for reusable semester runs: done.
-- GitHub Actions production workflow: planned.
+- Analytics worksheet writer: done.
+- Pytest coverage for normalization: started.
+- GitHub Actions production workflow: started.
 
 Created by Humberto Bohorquez. Built with Python, Pandas, NumPy, Google APIs, and GitHub Actions.
 

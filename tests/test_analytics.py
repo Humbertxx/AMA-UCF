@@ -8,6 +8,7 @@ from ama_ucf.analytics import (
     event_density,
     event_type_mix,
 )
+from ama_ucf.utils import unwrap_response
 
 # mock data pass into the test functions below
 def make_analytics_df() -> pd.DataFrame:
@@ -42,16 +43,19 @@ def make_analytics_df() -> pd.DataFrame:
 
 
 def test_event_density_counts_events_by_week():
-    result = event_density(make_analytics_df())
+    data = unwrap_response(event_density(make_analytics_df()), "calculate event density")
 
-    assert list(result.columns) == ["event_date", "event_count"]
-    assert result["event_count"].sum() == 4
+    assert list(data.columns) == ["event_date", "event_count"]
+    assert data["event_count"].sum() == 4
 
 
 def test_cross_segment_evaluation_groups_by_semester_and_type():
-    result = cross_segment_evaluation(make_analytics_df())
+    data = unwrap_response(
+        cross_segment_evaluation(make_analytics_df()),
+        "calculate cross segment evaluation",
+    )
 
-    workshop = result[(result["semester"] == "Fall '26") & (result["Type"] == "Workshop")].iloc[0]
+    workshop = data[(data["semester"] == "Fall '26") & (data["Type"] == "Workshop")].iloc[0]
 
     assert workshop["event_count"] == 2
     assert workshop["first_event_date"] == pd.Timestamp("2026-09-08")
@@ -60,11 +64,11 @@ def test_cross_segment_evaluation_groups_by_semester_and_type():
 
 
 def test_event_type_mix_calculates_share_and_cumulative_share():
-    result = event_type_mix(make_analytics_df())
+    data = unwrap_response(event_type_mix(make_analytics_df()), "calculate event type mix")
 
-    workshop = result[result["Type"] == "Workshop"].iloc[0]
+    workshop = data[data["Type"] == "Workshop"].iloc[0]
 
-    assert list(result.columns) == [
+    assert list(data.columns) == [
         "Type",
         "event_count",
         "share_of_events",
@@ -72,26 +76,27 @@ def test_event_type_mix_calculates_share_and_cumulative_share():
     ]
     assert workshop["event_count"] == 2
     assert workshop["share_of_events"] == 0.5
-    assert result["cumulative_share"].iloc[-1] == 1.0
+    assert data["cumulative_share"].iloc[-1] == 1.0
 
 
 def test_analytics_tab_returns_enabled_analytics_without_google_write(monkeypatch):
     written = {}
 
-    def fake_write_to_sheet(gc, results):
-        written["gc"] = gc
+    def fake_write_to_sheet(sh, results):
+        written["sh"] = sh
         written["results"] = results
         return {"success": True, "error": None, "data": "analytics written"}
 
     monkeypatch.setattr("ama_ucf.analytics.write_to_sheet", fake_write_to_sheet)
 
-    result = analytics_tab(gc={"data": object()}, all_worksheets=make_analytics_df())
+    fake_sh = [object()]
+    result = analytics_tab(fake_sh, all_worksheets=make_analytics_df())
+    data = unwrap_response(result, "write to analytics tab")
 
-    assert result["success"] is True
-    assert result["error"] is None
-    assert set(result["data"]) == {
+    assert data == "analytics written"
+    assert written["sh"] is fake_sh
+    assert set(written["results"]) == {
         "event_density",
         "cross_segment_evaluation",
         "event_type_mix",
     }
-    assert written["results"] == result["data"]
