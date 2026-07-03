@@ -44,7 +44,7 @@ def analytics_tab(
         return evaluate_response_status(None, str(exc))
 
 # cross segment evaluation
-def cross_segment_evaluation(df : pd.DataFrame):
+def cross_segment_evaluation(df : pd.DataFrame) -> dict:
     try:
         if df.empty:
             raise ValueError("Dataframe is empty")
@@ -76,7 +76,7 @@ def cross_segment_evaluation(df : pd.DataFrame):
         return evaluate_response_status(None, str(exc))
 
 # event density
-def event_density(df : pd.DataFrame):
+def event_density(df : pd.DataFrame) -> dict:
     try:
         if df.empty:
             raise ValueError("Dataframe is empty")
@@ -96,7 +96,7 @@ def event_density(df : pd.DataFrame):
         return evaluate_response_status(None, str(exc))
 
 # event type mix
-def event_type_mix(df: pd.DataFrame):
+def event_type_mix(df: pd.DataFrame) -> dict:
     try:
         if df.empty:
             raise ValueError("Dataframe is empty")
@@ -126,7 +126,7 @@ def event_type_mix(df: pd.DataFrame):
     except Exception as exc:
         return evaluate_response_status(None, str(exc))
          
-def write_to_sheet(sh,results):
+def write_to_sheet(sh,results) -> dict:
     try:
         if results is None:
             return evaluate_response_status("nothing to write home about!")

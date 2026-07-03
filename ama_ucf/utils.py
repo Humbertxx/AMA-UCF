@@ -1,10 +1,11 @@
 from datetime import date, time
 import argparse
+import pandas as pd
 
 from ama_ucf.config import SEMESTER_FORMAT
 
 # gets the current semester based on current year and month
-def getSemester() -> dict:
+def get_semester() -> dict:
     try:
         current_date = date.today()
         full_yr = current_date.year        # 2026
@@ -18,10 +19,10 @@ def getSemester() -> dict:
     except Exception as exc:
         return evaluate_response_status(None, str(exc))
 
-# gets the fraction time give in FORMULA in Google Sheet and standardize it to a simple time
+# converts the fraction time give in FORMULA in Google Sheet and standardize it to a simple time
 def fractionToTime(fraction: float) -> dict:
     try:
-        if fraction in (None, ""):
+        if fraction in (None, "") or pd.isna(fraction):
             return evaluate_response_status(None) # all day calendar
         
         fraction = float(fraction)
@@ -44,7 +45,7 @@ def parse_args():
     return parser.parse_args()
 
 # standard way to return function in dictionaries
-def evaluate_response_status(data, error: str | None = None):
+def evaluate_response_status(data, error: str | None = None) -> dict:
     if error:
         return {"success": False, "error": error, "data": None}
 

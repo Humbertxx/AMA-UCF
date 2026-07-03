@@ -6,7 +6,6 @@ from .calendar import (
     create_new_calendar,
     event_type,
     event_already_exists,
-    get_events,
 )
 from .sheets import (
     calendar_spreadsheet,
@@ -51,7 +50,6 @@ __all__ = [
     "event_already_exists",
     "event_type",
     "get_all_worksheets",
-    "get_events",
     "get_credentials",
     "get_spreadsheets",
     "normalize_calendar",

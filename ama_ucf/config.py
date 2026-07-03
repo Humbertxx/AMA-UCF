@@ -2,7 +2,6 @@ import os
 
 SPREADSHEET_ID    = os.getenv("SPREADSHEET_ID")
 ARCHIVE_ID        = os.getenv("ARCHIVE_SPREADSHEET_ID")
-CALENDAR_NAME     = os.getenv("CALENDAR_NAME")
 
 SERVICE_ACCT_KEY  = os.getenv("SERVICE_ACCT_KEY")
 CALENDAR_TZ       = os.getenv("CALENDAR_TIMEZONE", "America/New_York")

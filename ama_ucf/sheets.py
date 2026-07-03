@@ -6,7 +6,7 @@ from gspread import Client, Worksheet, Spreadsheet
 from gspread_dataframe import get_as_dataframe 
 import pandas as pd
 
-from ama_ucf.utils import evaluate_response_status, fractionToTime, getSemester, unwrap_response
+from ama_ucf.utils import evaluate_response_status, fractionToTime, get_semester, unwrap_response
 from ama_ucf.config import SPREADSHEET_ID, CREDENTIALS_WORKSHEET_FILE_PATH, ARCHIVE_ID
 
 # validation of credentials
@@ -53,7 +53,7 @@ def get_spreadsheets(gc: Client) -> dict:
 # get the worksheet intended to be use for only the calendar 
 def calendar_spreadsheet(sh: list[Spreadsheet], semester=None) -> dict: 
     try: 
-        semester_response = evaluate_response_status(semester) if semester else getSemester()
+        semester_response = evaluate_response_status(semester) if semester else get_semester()
         semester_response = unwrap_response(semester_response, "get semester input")
         worksheet = sh[0].worksheet(str(semester_response))
     
@@ -87,16 +87,9 @@ def get_all_worksheets(spreadsheets: list[Spreadsheet]) -> dict:
             for ws in sh.worksheets():
                 if ws.title == "Analytics":
                     continue
-                try:
-                    df_response = worksheet_to_dataframe(ws)
-                    if not df_response["success"] or df_response["data"] is None:
-                        continue
-
-                    all_dfs.append(df_response["data"])
+                df_response = unwrap_response(worksheet_to_dataframe(ws), f"load worksheet {ws.title}")
+                all_dfs.append(df_response)
                 
-                except Exception:
-                    continue
-
         if not all_dfs:
             raise ValueError("No worksheet data found.")
                 
@@ -127,8 +120,12 @@ def normalize_calendar(df: pd.DataFrame) -> dict:
 
         df = df[df["event_date"] >= datetime.today().date()].copy()
         
-        def parse_time(value): # TO DO: Returns Error when None should be succesful, need fix
-            return unwrap_response(fractionToTime(value),"get standard date format")
+        def parse_time(value): 
+            response = fractionToTime(value)
+            if not response["success"]:
+                raise RuntimeError(f"Could not get standard date format: {response['error']}")
+            
+            return response["data"]
 
         df["time"] = df["time"].apply(parse_time)
         combined_text = df["event_date"].astype(str) + " " + df["time"].astype(str)

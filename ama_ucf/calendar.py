@@ -3,18 +3,17 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-import datetime
 import os.path
 import hashlib
 
-from ama_ucf.utils import evaluate_response_status, getSemester, unwrap_response
+from ama_ucf.utils import evaluate_response_status, get_semester, unwrap_response
 
 from ama_ucf.config import SCOPES_CALENDAR, TOKEN_FILE_PATH, \
   CREDENTIALS_CALENDAR_FILE_PATH, CALENDAR_TZ, CALENDAR_NAME, \
     EVENT_TYPE_MAP, CALENDAR_ID, AUTO_CREATE_CALENDAR
     
 # validation and retrieval of Google Calendar         
-def create_calendar_service():
+def create_calendar_service() -> dict:
   try:  
     api_key_path = CREDENTIALS_CALENDAR_FILE_PATH
     token_path = TOKEN_FILE_PATH
@@ -34,13 +33,13 @@ def create_calendar_service():
   except Exception as exc:
     return evaluate_response_status(None, str(exc))
   
-# get the calendar ID based on its name
+# get the calendar ID based on its name if ID not present, if not creates one
 def calendar_id(service):
   try:
     if not service:
       raise ValueError("Calendar service is required.")
 
-    if CALENDAR_ID is not None or CALENDAR_ID is not "":
+    if CALENDAR_ID:
       return evaluate_response_status(CALENDAR_ID)
   
     calendars_results = service.calendarList().list().execute()
@@ -50,7 +49,7 @@ def calendar_id(service):
       if calendar.get("summary") == CALENDAR_NAME:
         return evaluate_response_status(calendar["id"])
   
-    if AUTO_CREATE_CALENDAR is True:
+    if AUTO_CREATE_CALENDAR:
       return create_new_calendar(CALENDAR_NAME, service)
     
     raise ValueError(f"Calendar not found: {CALENDAR_NAME}")
@@ -59,10 +58,8 @@ def calendar_id(service):
     return evaluate_response_status(None, str(exc))
     
     
-# gets the necessary credentials that the user is going to use to validate its instance in program
-# creates the toke.json which is the place where validation is found 
-# returns credentials 
-def get_credentials(tokenFile: str, credentialFile: str):
+# gets the necessary credentials that the user is going to use to validate its instance in program creates the toke.json. Returns credentials 
+def get_credentials(tokenFile: str, credentialFile: str) -> dict:
   try:
     creds = None
     if not tokenFile:
@@ -120,36 +117,10 @@ def create_new_calendar(name: str, service) -> str:
   except Exception as exc:
     return evaluate_response_status(None, str(exc))
 
-# gets events that are present in Google Calendar
-# is a variable output, change values to get in "maxResults="  
-# if summary not found in given, returns event without summary
-# debugging code
-def get_events(service):
-  try:
-    if not service:
-      raise ValueError("Calendar service is required.")
-
-    now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
-    
-    events_result = (
-      service.events().list(
-        calendarId="primary", 
-        timeMin=now, 
-        maxResults=10, 
-        singleEvents=True, 
-        orderBy="startTime",
-        )
-      .execute()
-      )
-    
-    return evaluate_response_status(events_result.get("items", []))
-  
-  except Exception as exc:
-    return evaluate_response_status(None, str(exc))
 
 # creates an event based on the list given in first parameter, gets the service 
 # (which is the gate-away to Google Calendar) and transition the values from the given list to Google Calendar
-def create_event(gsEvent: dict, service, calendar_id: str, semester:str):
+def create_event(gsEvent: dict, service, calendar_id: str, semester: str) -> dict:
   try:
     if not gsEvent:
       raise ValueError("Google Sheets event is required.")
@@ -197,7 +168,7 @@ def create_event(gsEvent: dict, service, calendar_id: str, semester:str):
     return evaluate_response_status(None, str(exc))
 
 # helper to skip already existing events
-def event_already_exists(service, calendar_id: str, event_key):
+def event_already_exists(service, calendar_id: str, event_key: str) -> dict:
   try:
     if not service:
       raise ValueError("Calendar service is required.")
@@ -222,9 +193,9 @@ def event_type(eventSummary):
     return evaluate_response_status(None, str(exc))
 
 # build unique identifier to sync worksheet to calendar efficiently
-def build_event_key(gsEvent: dict, calendar_id: str, semester):
+def build_event_key(gsEvent: dict, calendar_id: str, semester) -> dict:
   try:
-    semester_response = evaluate_response_status(semester) if semester else getSemester()
+    semester_response = evaluate_response_status(semester) if semester else get_semester()
     semester_response = unwrap_response(semester_response, "get semester input")
 
     parts = "|".join([
