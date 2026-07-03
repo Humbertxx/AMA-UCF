@@ -65,6 +65,18 @@ def test_normalize_calendar_builds_all_day_future_event_payload():
     assert "dateTime" not in event["end"]
 
 
+def test_normalize_calendar_treats_nan_time_as_all_day_event():
+    event_date = date.today() + timedelta(days=14)
+    df = pd.DataFrame([make_event_row(event_date=event_date, time=float("nan"))])
+
+    result = normalize_calendar(df)
+
+    assert result["success"] is True
+    event = result["data"][0]
+    assert event["start"] == {"date": event_date.isoformat()}
+    assert event["end"] == {"date": (event_date + timedelta(days=1)).isoformat()}
+
+
 def test_normalize_calendar_filters_past_events():
     past_event = make_event_row(
         event_date=date.today() - timedelta(days=1),
