@@ -5,7 +5,7 @@ from ama_ucf.calendar import create_calendar_service, calendar_id
 
 # gets events that are present in Google Calendar
 def main():
-  event_amount = int(input("enter amount of events to find", 10))
+  event_amount = int(input("enter amount of events to find")) or 10
   
   service = unwrap_response(create_calendar_service(), "create calendar service")
   id = unwrap_response(calendar_id(service), "get current env calendar")
