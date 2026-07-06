@@ -1,17 +1,19 @@
 import datetime
 
 from ama_ucf.utils import evaluate_response_status, unwrap_response
-from ama_ucf.calendar import create_calendar_service
+from ama_ucf.calendar import create_calendar_service, calendar_id
 
 # gets events that are present in Google Calendar
-# is a variable output, change values to get in "maxResults="  
-
 def main():
-    service = unwrap_response(create_calendar_service(), "create calendar service")
-    calendar_events = unwrap_response(get_events(service), "get events in calendar")
-    print(calendar_events)
+  event_amount = int(input("enter amount of events to find", 10))
+  
+  service = unwrap_response(create_calendar_service(), "create calendar service")
+  id = unwrap_response(calendar_id(service), "get current env calendar")
+  calendar_events = unwrap_response(get_events(service, id, event_amount), "get events in calendar")
+  
+  print(calendar_events)
     
-def get_events(service) -> dict:
+def get_events(service, id, event_amount) -> dict:
   try:
     if not service:
       raise ValueError("Calendar service is required.")
@@ -20,9 +22,9 @@ def get_events(service) -> dict:
     
     events_result = (
       service.events().list(
-        calendarId="primary", 
+        calendarId=id, 
         timeMin=now, 
-        maxResults=10, 
+        maxResults=event_amount, 
         singleEvents=True, 
         orderBy="startTime",
         )
