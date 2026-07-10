@@ -133,15 +133,17 @@ def create_event(gsEvent: dict, service, calendar_id: str, semester: str) -> dic
     "summary" : gsEvent["summary"],
     "location" : gsEvent["location"],
     "description" : gsEvent["description"],
-    "colorId" : color_response,
     "start" : start_dt,
     "end" : end_dt,
     "extendedProperties": {
       "private": {
           "ama_row_key": event_key
         }
-    }
+      }
   }
+  if color_response is not None:
+    body["colorId"] = str(color_response)
+
   event = service.events().insert(calendarId=calendar_id, body=body).execute()
   print(f"event created {event.get('htmlLink')}")
 
@@ -164,7 +166,7 @@ def event_already_exists(service, calendar_id: str, event_key: str) -> bool:
 # helper to get the color for specific event type
 def event_type(eventSummary):
   key = str(eventSummary).strip().title()
-  return EVENT_TYPE_MAP.get(key, 0)
+  return EVENT_TYPE_MAP.get(key)
 
 
 # build unique identifier to sync worksheet to calendar efficiently
