@@ -1,8 +1,9 @@
-from datetime import date, time
+from datetime import date, datetime, time, timedelta
 import argparse
-import pandas as pd
 
 from ama_ucf.config import SEMESTER_FORMAT
+
+SKIP_TIME = "skip"
 
 # gets the current semester based on current year and month
 def get_semester() -> str:
@@ -14,20 +15,47 @@ def get_semester() -> str:
     fmt = SEMESTER_FORMAT
     return fmt.format(season=season, short_yr=short_yr, full_yr=full_yr)
 
-# converts the fraction time give in FORMULA in Google Sheet and standardize it to a simple time
-def fractionToTime(fraction: float) -> time | None:
-    if fraction in (None, "") or pd.isna(fraction):
-        return None # all day calendar
+# check if text have meridiem if it does removes and format to desire specs and return time 
+def parse_time_text(value: str) -> time | None:
+    text = str(value).strip().lower()
+    for meridiem in ("am", "pm"):
+        if not text.endswith(meridiem):
+            continue
 
-    fraction = float(fraction)
-    if not (0 <= fraction < 1):
-        raise ValueError(f"Invalid time fraction: {fraction}")
+        clock_text = text.removesuffix(meridiem).strip()
+        fmt = "%I:%M %p" if ":" in clock_text else "%I %p"
+        return datetime.strptime(f"{clock_text} {meridiem}", fmt).time()
 
-    total_seconds = fraction * 24 * 60 * 60
-    hours = int(total_seconds // 3600)
-    minutes = int((total_seconds % 3600) // 60)
+    return None
 
-    return time(hours, minutes)
+# adds one whole hour (or 60 minutes)
+def add_one_hour(value: time) -> time:
+    return (datetime.combine(datetime.today().date(), value) + timedelta(hours=1)).time()
+
+# parse the text to see what time it is the event at from end to finsih adding hour as end
+def parse_time_window(value) -> tuple[time | None, time | None] | str:
+    text = str(value).strip().lower()
+
+    if text in {"", "nan"}:
+        return None, None
+
+    if text == "all day":
+        return None, None
+
+    parts = [part.strip() for part in text.split("-", maxsplit=1)]
+    if len(parts) == 2:
+        start_text, end_text = parts
+        start_time = parse_time_text(start_text)
+        end_time = parse_time_text(end_text)
+        if start_time is None or end_time is None:
+            return SKIP_TIME
+    else:
+        start_time = parse_time_text(text)
+        if start_time is None:
+            return SKIP_TIME
+        end_time = add_one_hour(start_time)
+
+    return start_time, end_time
 
 # manual parsing of events
 def parse_args():
