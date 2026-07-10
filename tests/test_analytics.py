@@ -7,8 +7,8 @@ from ama_ucf.analytics import (
     cross_segment_evaluation,
     event_density,
     event_type_mix,
+    write_to_sheet,
 )
-from ama_ucf.utils import unwrap_response
 
 # mock data pass into the test functions below
 def make_analytics_df() -> pd.DataFrame:
@@ -43,17 +43,14 @@ def make_analytics_df() -> pd.DataFrame:
 
 
 def test_event_density_counts_events_by_week():
-    data = unwrap_response(event_density(make_analytics_df()), "calculate event density")
+    data = event_density(make_analytics_df())
 
     assert list(data.columns) == ["event_date", "event_count"]
     assert data["event_count"].sum() == 4
 
 
 def test_cross_segment_evaluation_groups_by_semester_and_type():
-    data = unwrap_response(
-        cross_segment_evaluation(make_analytics_df()),
-        "calculate cross segment evaluation",
-    )
+    data = cross_segment_evaluation(make_analytics_df())
 
     workshop = data[(data["semester"] == "Fall '26") & (data["Type"] == "Workshop")].iloc[0]
 
@@ -64,7 +61,7 @@ def test_cross_segment_evaluation_groups_by_semester_and_type():
 
 
 def test_event_type_mix_calculates_share_and_cumulative_share():
-    data = unwrap_response(event_type_mix(make_analytics_df()), "calculate event type mix")
+    data = event_type_mix(make_analytics_df())
 
     workshop = data[data["Type"] == "Workshop"].iloc[0]
 
@@ -85,18 +82,91 @@ def test_analytics_tab_returns_enabled_analytics_without_google_write(monkeypatc
     def fake_write_to_sheet(sh, results):
         written["sh"] = sh
         written["results"] = results
-        return {"success": True, "error": None, "data": "analytics written"}
+        return "analytics written"
 
     monkeypatch.setattr("ama_ucf.analytics.write_to_sheet", fake_write_to_sheet)
 
     fake_sh = [object()]
     result = analytics_tab(fake_sh, all_worksheets=make_analytics_df())
-    data = unwrap_response(result, "write to analytics tab")
 
-    assert data == "analytics written"
+    assert result == "analytics written"
     assert written["sh"] is fake_sh
     assert set(written["results"]) == {
         "event_density",
         "cross_segment_evaluation",
         "event_type_mix",
     }
+
+
+def test_write_to_sheet_creates_missing_analytics_anchor(monkeypatch):
+    writes = []
+
+    class FakeCell:
+        def __init__(self, row, col):
+            self.row = row
+            self.col = col
+
+    class FakeWorksheet:
+        def __init__(self):
+            self.title_cell = None
+
+        def find(self, value):
+            return self.title_cell if value == "Insightful Analytics" else None
+
+        def update_cell(self, row, col, value):
+            self.title_cell = FakeCell(row, col)
+
+    class FakeSpreadsheet:
+        def __init__(self):
+            self.ws = FakeWorksheet()
+
+        def worksheet(self, title):
+            assert title == "Analytics"
+            return self.ws
+
+    def fake_set_with_dataframe(ws, df, row, col):
+        writes.append((row, col, list(df.columns)))
+
+    monkeypatch.setattr("ama_ucf.analytics.set_with_dataframe", fake_set_with_dataframe)
+
+    results = {
+        "event_density": pd.DataFrame({"event_date": [pd.Timestamp("2026-09-01")], "event_count": [1]}),
+        "cross_segment_evaluation": pd.DataFrame(
+            {
+                "semester": ["Fall '26"],
+                "Type": ["Workshop"],
+                "event_count": [1],
+                "first_event_date": [pd.Timestamp("2026-09-01")],
+                "last_event_date": [pd.Timestamp("2026-09-01")],
+                "largest_gap_days": [None],
+            }
+        ),
+        "event_type_mix": pd.DataFrame(
+            {
+                "Type": ["Workshop"],
+                "event_count": [1],
+                "share_of_events": [1.0],
+                "cumulative_share": [1.0],
+            }
+        ),
+    }
+
+    result = write_to_sheet([FakeSpreadsheet()], results)
+
+    assert result == "analytics written"
+    assert writes == [
+        (11, 13, ["event_date", "event_count"]),
+        (
+            11,
+            17,
+            [
+                "semester",
+                "Type",
+                "event_count",
+                "first_event_date",
+                "last_event_date",
+                "largest_gap_days",
+            ],
+        ),
+        (11, 23, ["Type", "event_count", "share_of_events", "cumulative_share"]),
+    ]

@@ -11,6 +11,7 @@ dependencies = [
     "google-auth-oauthlib>=1.4.0",
     "gspread>=6.2.1",
     "gspread-dataframe>=4.0.0",
+    "python-dotenv>=1.2.2",
 ]
 
 [dependency-groups]

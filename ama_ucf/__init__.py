@@ -17,10 +17,7 @@ from .sheets import (
     worksheet_to_dataframe,
 )
 from .utils import (
-    evaluate_response_status,
     parse_args,
-    unwrap_response,
-    
 )
 from .audit import (
     write_sync_log
@@ -37,8 +34,6 @@ __all__ = [
     "event_density",
     "event_type_mix",
     "analytics_tab",
-    "evaluate_response_status",
-    "unwrap_response",
     "write_sync_log",
     "parse_args",
     "build_event_key",

@@ -1,6 +1,8 @@
 from datetime import date, timedelta
+import warnings
 
 import pandas as pd
+import pytest
 
 from ama_ucf.sheets import get_all_worksheets, normalize_calendar, normalize_rows
 
@@ -8,7 +10,7 @@ from ama_ucf.sheets import get_all_worksheets, normalize_calendar, normalize_row
 def make_event_row(**overrides):
     row = {
         "event_date": date.today() + timedelta(days=7),
-        "time": 0.5,
+        "Time": 0.5,
         "Event": "Marketing Workshop",
         "Description": "Hollywood Stars and Celebrities: What Do They Know? Do They Know Things?? Let's Find Out!",
         "Location": "BA1 135",
@@ -23,42 +25,36 @@ def test_normalize_calendar_builds_timed_future_event_payload():
 
     result = normalize_calendar(df)
 
-    assert result == {
-        "success": True,
-        "error": None,
-        "data": [
-            {
-                "summary": "Marketing Workshop",
-                "description": "Hollywood Stars and Celebrities: What Do They Know? Do They Know Things?? Let's Find Out!",
-                "location": "BA1 135",
-                "organizer": "Workshop",
-                "start": {
-                    "dateTime": (
-                        date.today() + timedelta(days=7)
-                    ).isoformat()
-                    + "T12:00:00"
-                },
-                "end": {
-                    "dateTime": (
-                        date.today() + timedelta(days=7)
-                    ).isoformat()
-                    + "T13:00:00"
-                },
-            }
-        ],
-    }
+    assert result == [
+        {
+            "summary": "Marketing Workshop",
+            "description": "Hollywood Stars and Celebrities: What Do They Know? Do They Know Things?? Let's Find Out!",
+            "location": "BA1 135",
+            "organizer": "Workshop",
+            "start": {
+                "dateTime": (
+                    date.today() + timedelta(days=7)
+                ).isoformat()
+                + "T12:00:00"
+            },
+            "end": {
+                "dateTime": (
+                    date.today() + timedelta(days=7)
+                ).isoformat()
+                + "T13:00:00"
+            },
+        }
+    ]
 
 
 def test_normalize_calendar_builds_all_day_future_event_payload():
     event_date = date.today() + timedelta(days=14)
-    df = pd.DataFrame([make_event_row(event_date=event_date, time=None)])
+    df = pd.DataFrame([make_event_row(event_date=event_date, Time=None)])
 
     result = normalize_calendar(df)
 
-    assert result["success"] is True
-    assert result["error"] is None
-    assert len(result["data"]) == 1
-    event = result["data"][0]
+    assert len(result) == 1
+    event = result[0]
     assert event["start"] == {"date": event_date.isoformat()}
     assert event["end"] == {"date": (event_date + timedelta(days=1)).isoformat()}
     assert "dateTime" not in event["start"]
@@ -67,12 +63,11 @@ def test_normalize_calendar_builds_all_day_future_event_payload():
 
 def test_normalize_calendar_treats_nan_time_as_all_day_event():
     event_date = date.today() + timedelta(days=14)
-    df = pd.DataFrame([make_event_row(event_date=event_date, time=float("nan"))])
+    df = pd.DataFrame([make_event_row(event_date=event_date, Time=float("nan"))])
 
     result = normalize_calendar(df)
 
-    assert result["success"] is True
-    event = result["data"][0]
+    event = result[0]
     assert event["start"] == {"date": event_date.isoformat()}
     assert event["end"] == {"date": (event_date + timedelta(days=1)).isoformat()}
 
@@ -90,15 +85,14 @@ def test_normalize_calendar_filters_past_events():
 
     result = normalize_calendar(df)
 
-    assert result["success"] is True
-    assert [event["summary"] for event in result["data"]] == ["Future Event"]
+    assert [event["summary"] for event in result] == ["Future Event"]
 
 
 def test_normalize_calendar_returns_error_for_missing_event_date():
     df = pd.DataFrame(
         [
             {
-                "time": 0.5,
+                "Time": 0.5,
                 "Event": "Malformed Event",
                 "Description": "Missing required date column.",
                 "Location": "BA1 135",
@@ -107,21 +101,15 @@ def test_normalize_calendar_returns_error_for_missing_event_date():
         ]
     )
 
-    result = normalize_calendar(df)
-
-    assert result["success"] is False
-    assert result["error"]
-    assert result["data"] is None
+    with pytest.raises(KeyError):
+        normalize_calendar(df)
 
 
 def test_normalize_calendar_returns_error_for_invalid_time_fraction():
-    df = pd.DataFrame([make_event_row(time=1.5)])
+    df = pd.DataFrame([make_event_row(Time=1.5)])
 
-    result = normalize_calendar(df)
-
-    assert result["success"] is False
-    assert "Invalid time fraction" in result["error"]
-    assert result["data"] is None
+    with pytest.raises(ValueError, match="Invalid time fraction"):
+        normalize_calendar(df)
 
 
 def test_normalize_rows_returns_response_with_event_date():
@@ -146,14 +134,39 @@ def test_normalize_rows_returns_response_with_event_date():
 
     result = normalize_rows(df)
 
-    assert result["success"] is True
-    assert result["error"] is None
-    data = result["data"]
-    assert len(data) == 1
-    assert data.iloc[0]["event_date"] == date(1899, 12, 31)
+    assert len(result) == 1
+    assert result.iloc[0]["event_date"] == date(1899, 12, 31)
 
 
-def test_get_all_worksheets_returns_wrapped_combined_dataframe(monkeypatch):
+def test_normalize_rows_parses_text_dates_without_inference_warning():
+    df = pd.DataFrame(
+        [
+            {
+                "Date": "2026-09-01",
+                "Event": "Launch Meeting",
+                "Description": "Planning.",
+                "Location": "BA1",
+                "Type": "Workshop",
+            },
+            {
+                "Date": "09/08/2026",
+                "Event": "Follow-up",
+                "Description": "Planning.",
+                "Location": "BA1",
+                "Type": "Workshop",
+            },
+        ]
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = normalize_rows(df)
+
+    assert list(result["event_date"]) == [date(2026, 9, 1), date(2026, 9, 8)]
+    assert not any("Could not infer format" in str(warning.message) for warning in caught)
+
+
+def test_get_all_worksheets_returns_combined_dataframe(monkeypatch):
     class FakeWorksheet:
         def __init__(self, title):
             self.title = title
@@ -192,8 +205,5 @@ def test_get_all_worksheets_returns_wrapped_combined_dataframe(monkeypatch):
 
     result = get_all_worksheets(spreadsheets)
 
-    assert result["success"] is True
-    assert result["error"] is None
-    data = result["data"]
-    assert list(data["semester"]) == ["Fall '26", "Spring '27"]
-    assert "Analytics" not in set(data["semester"])
+    assert list(result["semester"]) == ["Fall '26", "Spring '27"]
+    assert "Analytics" not in set(result["semester"])
