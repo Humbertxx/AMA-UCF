@@ -16,94 +16,66 @@ The intention is to turn a student organization's planning spreadsheet into a re
 
 ## Architecture
 
-```text
-Google Sheets
-    |
-    v
-ama_ucf.sheets
-    - authenticate with service account
-    - open active and archive spreadsheets
-    - load worksheet tabs into DataFrames
-    - normalize dates, times, and event rows
-    |
-    +--> ama_ucf.calendar
-    |       - build Google Calendar payloads
-    |       - create stable duplicate-detection keys
-    |       - skip existing events
-    |       - create new Google Calendar events
-    |
-    +--> ama_ucf.audit
-    |       - write sync_log.csv
-    |
-    +--> ama_ucf.analytics
-            - calculate event density
-            - calculate cross-segment summaries
-            - calculate event type mix with NumPy
-            - write analytics tables to the Analytics tab
+```mermaid
+flowchart TD
+    A[Google Sheets semester tabs] --> B[ama_ucf.sheets]
+    B --> C[worksheet_to_dataframe]
+    C --> D[normalize_rows]
+    D --> E[event_date DataFrame]
+
+    E --> F[normalize_calendar]
+    F --> G[Google Calendar payloads]
+    G --> H[ama_ucf.calendar.create_event]
+    H --> I{Existing ama_row_key?}
+    I -- yes --> J[Skip duplicate]
+    I -- no --> K[Create Google Calendar event]
+
+    E --> L[ama_ucf.audit.write_sync_log]
+    L --> M[sync_log.csv]
+
+    E --> N[ama_ucf.analytics]
+    N --> O[event_density]
+    N --> P[cross_segment_evaluation]
+    N --> Q[event_type_mix]
+    O --> R[Analytics worksheet]
+    P --> R
+    Q --> R
 ```
 
 Runtime sequence:
 
-```text
-main.py
-  -> get Google Sheets credentials
-  -> open active and archive spreadsheets
-  -> select the requested semester worksheet
-  -> convert the worksheet to a Pandas DataFrame
-  -> normalize event rows
-  -> convert rows into Google Calendar payloads
-  -> create a Google Calendar service
-  -> resolve the destination calendar
-  -> for each future event:
-       -> build a stable event key
-       -> search Google Calendar for that key
-       -> skip the event if it already exists
-       -> otherwise create the event
-  -> write a CSV audit log
-  -> calculate analytics tables when enabled
-  -> write analytics tables to the Analytics worksheet
-```
+1. `main.py` reads CLI arguments, including optional `--semester`.
+2. The Sheets layer authenticates, opens the active/archive spreadsheets, selects the requested semester tab, and loads it into a DataFrame.
+3. `normalize_rows()` drops unusable rows and creates the normalized `event_date` column.
+4. `normalize_calendar()` filters past events and builds Google Calendar payloads.
+5. The Calendar layer authenticates, resolves the destination calendar, checks each event's stable `ama_row_key`, skips duplicates, and creates missing events.
+6. The audit layer writes `sync_log.csv`.
+7. The analytics layer calculates summary tables and writes them to the `Analytics` worksheet.
 
 ## Data Flow
 
-```text
-Raw worksheet rows
-    |
-    v
-worksheet_to_dataframe()
-    |
-    v
-DataFrame + semester column
-    |
-    v
-normalize_rows()
-    |
-    +--> event_date column
-    |
-    +--> normalize_calendar()
-    |       |
-    |       v
-    |   Google Calendar payloads
-    |       |
-    |       v
-    |   create_event()
-    |       |
-    |       v
-    |   Google Calendar
-    |
-    +--> write_sync_log()
-    |       |
-    |       v
-    |   sync_log.csv
-    |
-    +--> analytics()
-            |
-            +--> event_density()
-            +--> cross_segment_evaluation()
-            +--> event_type_mix()
-            |
-            v
-        Analytics worksheet
+```mermaid
+flowchart LR
+    A[Raw worksheet rows] --> B[worksheet_to_dataframe]
+    B --> C[DataFrame with semester]
+    C --> D[normalize_rows]
+    D --> E[DataFrame with event_date]
+
+    E --> F[normalize_calendar]
+    F --> G[Calendar payloads]
+    G --> H[create_event]
+    H --> I[Google Calendar]
+
+    E --> J[write_sync_log]
+    J --> K[sync_log.csv]
+
+    E --> L[analytics_tab]
+    L --> M[event_density]
+    L --> N[cross_segment_evaluation]
+    L --> O[event_type_mix]
+    M --> P[Analytics worksheet]
+    N --> P
+    O --> P
 ```
 
 ## Current Stack
@@ -117,7 +89,6 @@ normalize_rows()
 - `google-api-python-client` for Google Calendar writes
 - `google-auth` and `google-auth-oauthlib` for Google authentication
 - Pytest for transformation tests
-- GitHub Actions as the intended production runtime
 
 ## Repository Structure
 
@@ -148,16 +119,16 @@ The pipeline expects each semester worksheet to contain event rows with these fi
 
 | Column | Purpose |
 | --- | --- |
-| `Date` | Google Sheets serial date value |
-| `time` | Google Sheets fractional time, such as `0.5` for noon |
+| `Date` | Google Sheets serial date value or parseable text date |
+| `Time` | Google Sheets fractional time, such as `0.5` for noon |
 | `Event` | Calendar event title |
 | `Description` | Calendar event description |
 | `Location` | Calendar location |
 | `Type` | Event category, used for calendar color and analytics |
 
-`worksheet_to_dataframe()` also adds a `semester` column using the worksheet tab title. After normalization, `normalize_rows()` adds `event_date`, which is used by the calendar and analytics layers.
+`worksheet_to_dataframe()` also adds a `semester` column using the worksheet tab title. After normalization, `normalize_rows()` adds `event_date`, which is used by the calendar and analytics layers. `normalize_calendar()` expects the column to be named `Time`; lowercase `time` is not part of the current sheet contract.
 
-The workbook should also include an `Analytics` tab if you want analytics tables written back to Google Sheets.
+The pipeline skips any existing `Analytics` tab while reading semester data. When writing analytics, it uses the existing `Analytics` tab or creates one if it is missing.
 
 ## What Each Module Does
 
@@ -193,7 +164,7 @@ Writes a simple CSV audit artifact:
 write_sync_log(df, path="sync_log.csv")
 ```
 
-This is intentionally lightweight. The CSV is useful for local debugging, GitHub Actions artifacts, and quick inspection without adding database infrastructure.
+This is intentionally lightweight. The CSV is useful for local debugging, CI artifacts, and quick inspection without adding database infrastructure.
 
 ### `ama_ucf.analytics`
 
@@ -216,7 +187,7 @@ Coordinates the runtime workflow.
 - Skips duplicate events.
 - Logs created/skipped counts.
 - Runs the audit snapshot workflow.
-- Provides analytics functions that can be wired into the snapshot flow.
+- Runs the analytics snapshot workflow and writes analytics tables to Google Sheets.
 
 ## Duplicate Prevention
 
@@ -353,13 +324,41 @@ uv run python main.py --semester "Fall '26"
 
 The semester string must match the worksheet tab name in Google Sheets.
 
+## GitHub Actions Setup
+
+The repository includes two workflows:
+
+- `.github/workflows/ci.yml` runs import checks, tests, and package build validation on pushes, pull requests, and manual dispatch.
+- `.github/workflows/sync.yml` runs the Google Sheets to Google Calendar sync on a weekly schedule and can also be started manually with an optional `semester` input.
+
+To make the scheduled sync work, add these GitHub repository secrets:
+
+| Secret | Purpose |
+| --- | --- |
+| `SPREADSHEET_ID` | Active Google Sheet ID |
+| `ARCHIVE_SPREADSHEET_ID` | Archive Google Sheet ID |
+| `CALENDAR_ID` | Optional destination Google Calendar ID |
+| `GOOGLE_SHEETS_CREDENTIALS_JSON` | Full service account JSON for Google Sheets access |
+| `GOOGLE_CALENDAR_CREDENTIALS_JSON` | Full OAuth client JSON for Google Calendar access |
+| `GOOGLE_CALENDAR_TOKEN_JSON` | OAuth token JSON generated from a successful local Calendar login |
+
+Optional repository variables:
+
+| Variable | Default |
+| --- | --- |
+| `CALENDAR_NAME` | `AMA Calendar` |
+| `CALENDAR_TIMEZONE` | `America/New_York` |
+| `POLL_INTERVAL_SECONDS` | `300` |
+
+The important detail is `GOOGLE_CALENDAR_TOKEN_JSON`: GitHub Actions cannot complete the local browser OAuth flow, so generate `token.json` locally first, then copy that file's JSON content into the secret.
+
 ## Replication Checklist
 
 Use this checklist to adapt the project for another organization.
 
 1. Create a Google Sheet with semester tabs.
-2. Add the required columns: `Date`, `time`, `Event`, `Description`, `Location`, and `Type`.
-3. Add an `Analytics` worksheet tab.
+2. Add the required columns: `Date`, `Time`, `Event`, `Description`, `Location`, and `Type`.
+3. Optionally add an `Analytics` worksheet tab; the pipeline can create it if it is missing.
 4. Create or choose a Google Calendar destination.
 5. Configure Google Cloud credentials.
 6. Share the Sheets file with the service account.
@@ -369,7 +368,9 @@ Use this checklist to adapt the project for another organization.
 10. Run `uv run python main.py --semester "<tab name>"`.
 11. Confirm new events appear in Google Calendar.
 12. Confirm `sync_log.csv` is generated.
-13. If analytics writing is enabled in your runtime, confirm analytics tables appear in the `Analytics` tab.
+13. Confirm analytics tables appear in the `Analytics` tab.
+14. Add the GitHub Actions secrets and variables if you want scheduled syncs.
+15. Run the `Sync AMA UCF Google Sheets to Google Calendar` workflow manually once before relying on the weekly schedule.
 
 ## Design Intentions
 
@@ -383,9 +384,30 @@ This project is intentionally split into small modules:
 
 That separation makes the workflow easier to test, easier to explain, and easier to extend. For example, the CSV audit log could later become SQLite or Postgres without changing the Sheets normalization logic.
 
-## Current Follow-Ups
+## Error Handling Lesson
 
-- Export analytics from `src.analytics` through the main runtime consistently.
+Earlier versions of this project wrapped most function results in dictionaries shaped like:
+
+```python
+{"success": True, "error": None, "data": value}
+```
+
+That was meant to mimic the feel of FastAPI-style response objects: every function had a predictable response shape, and callers could check success before moving forward. The idea made sense in spirit, but it was the wrong abstraction for this project.
+
+FastAPI route handlers sit at an HTTP boundary. Returning a dictionary there becomes JSON for an outside client. This project is not crossing that boundary between modules; it is a local Python pipeline where functions call each other in the same process. In that context, wrapping everything in response dictionaries did not create real JSON behavior. It just added another layer that every caller had to unwrap.
+
+The bigger problem was debugging. Broad `except Exception` blocks converted useful tracebacks into strings too early. A real bug such as using `cell_title.column` instead of gspread's actual `cell_title.col` became a nested runtime message instead of pointing directly to the bad line. The wrapper made the program look controlled, but it made failures harder to trace.
+
+The current design returns native Python objects directly:
+
+- Data loading functions return clients, worksheets, or DataFrames.
+- Normalization functions return DataFrames or event payload lists.
+- Calendar functions return created/skipped event status dictionaries only where that status is real domain data.
+- Expected validation problems raise `ValueError`.
+- Unexpected programming or API errors raise normally with their original traceback.
+
+Lesson learned: response wrappers are useful at actual service boundaries, but inside a local pipeline they can become noise. Native returns plus clear exceptions are simpler, easier to test, and much easier to debug.
+
 
 ## Roadmap Status
 
@@ -397,8 +419,9 @@ That separation makes the workflow easier to test, easier to explain, and easier
 - `--semester` argument for reusable semester runs: done.
 - Analytics worksheet writer: done.
 - Pytest coverage for normalization: done.
-- GitHub Actions production workflow: progress.
+- GitHub Actions CI workflow: done.
+- GitHub Actions scheduled sync workflow: done; requires repository secrets and a valid Calendar token.
 
-Created by Humberto Bohorquez. Built with Python, Pandas, NumPy, Google APIs, and GitHub Actions.
+Created by Humberto Bohorquez. Built with Python, Pandas, NumPy, and Google APIs.
 
 Licensed under MIT. See `LICENSE` for details.
