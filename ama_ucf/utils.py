@@ -1,9 +1,12 @@
 from datetime import date, datetime, time, timedelta
 import argparse
+import re
 
 from ama_ucf.config import SEMESTER_FORMAT
 
 SKIP_TIME = "skip"
+YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+SHORT_YEAR_RE = re.compile(r"'?(\d{2})\b")
 
 # gets the current semester based on current year and month
 def get_semester() -> str:
@@ -14,6 +17,30 @@ def get_semester() -> str:
 
     fmt = SEMESTER_FORMAT
     return fmt.format(season=season, short_yr=short_yr, full_yr=full_yr)
+
+# get year out of the semester inference 
+def semester_year(value) -> int | None:
+    text = str(value)
+    full_year = YEAR_RE.search(text)
+    if full_year:
+        return int(full_year.group(0))
+
+    short_year = SHORT_YEAR_RE.search(text)
+    if short_year:
+        return 2000 + int(short_year.group(1))
+
+    return None
+
+# search if df already have date if not get year using function semester_year
+def add_semester_year(text: str, semester) -> str:
+    if YEAR_RE.search(text):
+        return text
+
+    year = semester_year(semester)
+    if year is None:
+        return text
+
+    return f"{text} {year}"
 
 # check if text have meridiem if it does removes and format to desire specs and return time 
 def parse_time_text(value: str) -> time | None:
@@ -35,9 +62,6 @@ def add_one_hour(value: time) -> time:
 # parse the text to see what time it is the event at from end to finsih adding hour as end
 def parse_time_window(value) -> tuple[time | None, time | None] | str:
     text = str(value).strip().lower()
-
-    if text in {"", "nan"}:
-        return None, None
 
     if text == "all day":
         return None, None
